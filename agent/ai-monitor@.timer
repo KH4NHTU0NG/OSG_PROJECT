@@ -1,0 +1,10 @@
+[Unit]
+Description=AI Monitor Timer cho %i
+
+[Timer]
+OnActiveSec=1
+OnUnitActiveSec=5
+Unit=ai-monitor@%i.service
+
+[Install]
+WantedBy=timers.target

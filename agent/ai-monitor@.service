@@ -1,0 +1,8 @@
+[Unit]
+Description=AI Service Monitor cho %i
+After=network.target
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/opt/ai-service-monitor/agent/ai_monitor_service.sh %i

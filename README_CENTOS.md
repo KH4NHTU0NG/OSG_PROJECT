@@ -1,0 +1,79 @@
+# Hướng Dẫn Triển Khai AI Service Monitor trên CentOS 10
+
+Dự án này sử dụng Python (Flask) cho Backend/Dashboard và Bash Script + systemd cho Agent giám sát.
+
+## 1. Chuẩn Bị (Yêu cầu Root)
+
+Đăng nhập vào máy CentOS 10 của bạn bằng quyền root, cài đặt các công cụ cần thiết:
+
+```bash
+sudo dnf install -y python3 python3-pip jq git nano
+```
+
+## 2. Copy Mã Nguồn
+
+Giả sử bạn copy toàn bộ thư mục `ai-service-monitor` vào `/opt/ai-service-monitor`:
+
+```bash
+# Sau khi copy, cấp quyền thực thi cho script agent
+chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
+```
+
+## 3. Cấu Hình & Chạy Backend (Dashboard)
+
+1. Đi tới thư mục backend:
+   ```bash
+   cd /opt/ai-service-monitor/backend
+   ```
+2. Cài đặt thư viện Python:
+   ```bash
+   pip3 install -r requirements.txt
+   ```
+   *(Nếu gặp lỗi môi trường ảo (PEP 668), bạn có thể thêm flag `--break-system-packages` trên môi trường lab, hoặc tạo virtual env `python3 -m venv venv && source venv/bin/activate`)*
+3. Cấu hình biến môi trường:
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+   - Sửa `GROQ_API_KEY=` thành API Key thực tế của bạn (bắt đầu bằng `gsk_`).
+   - Sửa `SMTP_EMAIL=` và `SMTP_APP_PASSWORD=` nếu muốn nhận email cảnh báo.
+4. Mở Port tường lửa (nếu có dùng firewalld):
+   ```bash
+   sudo firewall-cmd --add-port=5000/tcp --permanent
+   sudo firewall-cmd --reload
+   ```
+5. Chạy Backend (chạy ngầm dùng nohup hoặc tmux):
+   ```bash
+   nohup python3 app.py > backend.log 2>&1 &
+   ```
+
+## 4. Cấu Hình Agent (Giám Sát)
+
+1. Copy file systemd template vào hệ thống:
+   ```bash
+   sudo cp /opt/ai-service-monitor/agent/ai-monitor@.service /etc/systemd/system/
+   sudo cp /opt/ai-service-monitor/agent/ai-monitor@.timer /etc/systemd/system/
+   ```
+2. Reload systemd daemon:
+   ```bash
+   sudo systemctl daemon-reload
+   ```
+3. Bật giám sát cho một dịch vụ cụ thể (Ví dụ: `httpd`):
+   ```bash
+   sudo systemctl enable --now ai-monitor@httpd.timer
+   ```
+
+## 5. Kịch Bản Demo (Action!)
+
+1. **Mở Trình Duyệt:** Truy cập `http://<IP_CENTOS_CỦA_BẠN>:5000`
+   Bạn sẽ thấy Dashboard hiện "HEALTHY".
+2. **Crash Dịch Vụ:** Trên terminal CentOS, gõ:
+   ```bash
+   sudo systemctl stop httpd
+   # hoặc
+   sudo kill -9 $(pgrep -o httpd)
+   ```
+3. **Xem Wow-Effect:**
+   - Ngay lập tức Dashboard báo "CRASHED" (nháy đỏ).
+   - Bash script tự khởi động lại `httpd` và gửi log cho Groq API (Llama 3.1).
+   - Vài giây sau, Dashboard chuyển sang "RECOVERED" / "HEALTHY", đồng thời hiển thị Báo cáo chi tiết nguyên nhân từ AI và gửi Email cảnh báo.

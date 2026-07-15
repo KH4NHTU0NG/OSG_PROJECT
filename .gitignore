@@ -1,0 +1,20 @@
+# Environment variables (chứa API keys, mật khẩu)
+.env
+*.env
+.env.local
+
+# Logs
+*.log
+backend.log
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# OS generated files
+.DS_Store
+Thumbs.db
