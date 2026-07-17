@@ -88,8 +88,11 @@ sudo rm -rf /opt/ai-service-monitor
 sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
 sudo chown -R $USER:$USER /opt/ai-service-monitor
 
-# 4. Phục hồi cấu hình .env, cấp quyền và chạy Backend (dùng sudo -E để AI có quyền restart dịch vụ)
+# 4. Phục hồi cấu hình .env, cài đặt systemd template, cấp quyền và chạy Backend
 cp /tmp/backend_env.bak /opt/ai-service-monitor/backend/.env 2>/dev/null || cp /opt/ai-service-monitor/backend/.env.example /opt/ai-service-monitor/backend/.env
+sudo cp /opt/ai-service-monitor/agent/ai-monitor@.service /etc/systemd/system/
+sudo cp /opt/ai-service-monitor/agent/ai-monitor@.timer /etc/systemd/system/
+sudo systemctl daemon-reload
 sudo chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
 cd /opt/ai-service-monitor/backend && sudo -E nohup python3 app.py > backend.log 2>&1 &
 ```
