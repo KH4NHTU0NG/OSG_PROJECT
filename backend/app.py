@@ -25,29 +25,37 @@ THRESHOLD_MEM  = 85   # %
 THRESHOLD_DISK = 90   # %
 RESOURCE_ALERT_COOLDOWN = 10   # 10 giây cooldown giữa các lần cảnh báo (mode Demo/Test)
 
-# ── Trạng thái hệ thống ─────────────────────────────────────────
+# ── Trạng thái hệ thống & Đồng bộ hóa ───────────────────────────
 monitored_services = {}
 incidents_log = []
 resource_metrics = {"cpu": 0, "mem": 0, "disk": 0, "last_update": "N/A"}
 last_resource_alert_time = 0  # timestamp lần cảnh báo gần nhất
 
+state_lock = threading.Lock()
+MAX_INCIDENTS = 100
+MAX_SERVICES = 50
+
 def get_or_create_service(name):
-    if name not in monitored_services:
-        monitored_services[name] = {
-            "service_name": name,
-            "status": "unknown",
-            "last_check": "Chưa kiểm tra"
-        }
-    return monitored_services[name]
+    with state_lock:
+        if name not in monitored_services:
+            if len(monitored_services) >= MAX_SERVICES:
+                return {"service_name": name, "status": "unknown", "last_check": "Limit reached"}
+            monitored_services[name] = {
+                "service_name": name,
+                "status": "unknown",
+                "last_check": "Chưa kiểm tra"
+            }
+        return monitored_services[name]
 
 # ── Chuyển trạng thái CRASHED → RECOVERED sau delay ─────────────
 def delayed_recover(service_name, delay=3):
     """Giữ trạng thái CRASHED trên Dashboard 3 giây rồi mới chuyển RECOVERED."""
     time.sleep(delay)
-    if service_name in monitored_services:
-        if monitored_services[service_name]["status"] == "crashed":
-            monitored_services[service_name]["status"] = "recovered"
-            print(f"[{datetime.now()}] ⚡ {service_name} → RECOVERED")
+    with state_lock:
+        if service_name in monitored_services:
+            if monitored_services[service_name]["status"] == "crashed":
+                monitored_services[service_name]["status"] = "recovered"
+                print(f"[{datetime.now()}] ⚡ {service_name} → RECOVERED")
 
 # ── Gửi Email chung ─────────────────────────────────────────────
 def send_email(subject, body_text):
@@ -79,8 +87,9 @@ def send_email(subject, body_text):
         print(f"[{datetime.now()}] ❌ Lỗi email khác: {type(e).__name__}: {e}")
 
 # ── Thread: AI phân tích sự cố service + Gửi Email ──────────────
-def analyze_and_notify(incident_index, service, logs, action_taken):
+def analyze_and_notify(target_incident, service, logs, action_taken):
     analysis = ""
+    logs_to_send = logs[-2000:] if logs else "Không có log"
 
     # 1. Gọi Groq AI
     if groq_client:
@@ -90,7 +99,7 @@ Dịch vụ '{service}' trên CentOS 10 vừa bị dừng hoạt động.
 
 Log hệ thống thu thập được (30 dòng cuối):
 ```text
-{logs[:2000]}
+{logs_to_send}
 ```
 
 QUY TẮC BẮT BUỘC TUYỆT ĐỐI (KHÔNG ĐƯỢC SUY DIỄN HAY TỰ TẠO RA LỖI KHÔNG CÓ TRONG LOG):
@@ -125,10 +134,11 @@ QUY TẮC BẮT BUỘC TUYỆT ĐỐI (KHÔNG ĐƯỢC SUY DIỄN HAY TỰ TẠO
     else:
         analysis = "⚠️ Groq API chưa được cấu hình. Kiểm tra file `.env`."
 
-    # 2. Cập nhật incident
-    if incident_index < len(incidents_log):
-        incidents_log[incident_index]["ai_analysis"] = analysis
-        incidents_log[incident_index]["ai_done"] = True
+    # 2. Cập nhật incident an toàn với state_lock
+    if isinstance(target_incident, dict):
+        with state_lock:
+            target_incident["ai_analysis"] = analysis
+            target_incident["ai_done"] = True
 
     # 3. Gửi Email
     subject = f"[AI MONITOR] {service} - Su co & Tu phuc hoi"
@@ -238,13 +248,14 @@ def dashboard():
 
 @app.route('/api/status')
 def get_status():
-    return jsonify({
-        "services": monitored_services,
-        "incidents": incidents_log,
-        "resources": resource_metrics,
-        "ai_connected": groq_client is not None,
-        "email_configured": bool(SMTP_EMAIL and SMTP_APP_PASSWORD)
-    })
+    with state_lock:
+        return jsonify({
+            "services": monitored_services,
+            "incidents": incidents_log,
+            "resources": resource_metrics,
+            "ai_connected": groq_client is not None,
+            "email_configured": bool(SMTP_EMAIL and SMTP_APP_PASSWORD)
+        })
 
 @app.route('/api/report', methods=['POST'])
 def receive_report():
@@ -256,35 +267,39 @@ def receive_report():
     action  = data.get("action", "none")
     ts      = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Cập nhật resource metrics
+    # Cập nhật resource metrics với state_lock
     cpu  = data.get("cpu_pct", 0)
     mem  = data.get("mem_pct", 0)
     disk = data.get("disk_pct", 0)
-    resource_metrics["cpu"]  = cpu
-    resource_metrics["mem"]  = mem
-    resource_metrics["disk"] = disk
-    resource_metrics["last_update"] = ts
+    with state_lock:
+        resource_metrics["cpu"]  = cpu
+        resource_metrics["mem"]  = mem
+        resource_metrics["disk"] = disk
+        resource_metrics["last_update"] = ts
 
     svc = get_or_create_service(service)
-    svc["last_check"] = ts
+    with state_lock:
+        svc["last_check"] = ts
+        if status == "active":
+            if svc["status"] != "crashed":
+                svc["status"] = "healthy"
 
     if status == "active":
-        if svc["status"] != "crashed":
-            svc["status"] = "healthy"
-
         now = time.time()
-        if (cpu >= THRESHOLD_CPU or mem >= THRESHOLD_MEM or disk >= THRESHOLD_DISK):
-            if (now - last_resource_alert_time) > RESOURCE_ALERT_COOLDOWN:
-                threading.Thread(
-                    target=analyze_resource_alert,
-                    args=(cpu, mem, disk),
-                    daemon=True
-                ).start()
+        with state_lock:
+            should_alert = (cpu >= THRESHOLD_CPU or mem >= THRESHOLD_MEM or disk >= THRESHOLD_DISK) and ((now - last_resource_alert_time) > RESOURCE_ALERT_COOLDOWN)
+        if should_alert:
+            threading.Thread(
+                target=analyze_resource_alert,
+                args=(cpu, mem, disk),
+                daemon=True
+            ).start()
 
         return jsonify({"ok": True}), 200
 
     # ═══ Service bị DOWN! ═══
-    svc["status"] = "crashed"
+    with state_lock:
+        svc["status"] = "crashed"
     print(f"[{ts}] 🚨 CRASH: {service} | Action: {action}")
 
     incident = {
@@ -294,7 +309,10 @@ def receive_report():
         "ai_analysis": "⏳ **AI (Llama 3.1) đang phân tích log...**",
         "ai_done":     False
     }
-    incidents_log.insert(0, incident)
+    with state_lock:
+        incidents_log.insert(0, incident)
+        if len(incidents_log) > MAX_INCIDENTS:
+            del incidents_log[MAX_INCIDENTS:]
 
     if action == "restarted":
         threading.Thread(
@@ -305,7 +323,7 @@ def receive_report():
 
     threading.Thread(
         target=analyze_and_notify,
-        args=(0, service, logs, action),
+        args=(incident, service, logs, action),
         daemon=True
     ).start()
 
@@ -417,6 +435,68 @@ def execute_fix():
         return jsonify({"output": f"Lỗi thực thi: {e}", "status": "error"}), 500
 
 
+# ── Hàm đọc số liệu tài nguyên chuẩn POSIX/Python không phụ thuộc locale/awk ──
+def get_system_metrics_safe():
+    cpu_val = resource_metrics.get("cpu", 0)
+    mem_val = resource_metrics.get("mem", 0)
+    disk_val = resource_metrics.get("disk", 0)
+
+    # CPU: Đọc /proc/stat chuẩn hóa
+    try:
+        if os.path.exists('/proc/stat'):
+            with open('/proc/stat', 'r') as f:
+                parts = f.readline().split()[1:]
+                nums = [float(x) for x in parts]
+                idle = nums[3] + (nums[4] if len(nums) > 4 else 0)
+                total = sum(nums)
+                if hasattr(get_system_metrics_safe, 'last_cpu'):
+                    d_total = total - get_system_metrics_safe.last_cpu[0]
+                    d_idle = idle - get_system_metrics_safe.last_cpu[1]
+                    if d_total > 0:
+                        cpu_val = int((1.0 - d_idle / d_total) * 100)
+                get_system_metrics_safe.last_cpu = (total, idle)
+        else:
+            # Fallback cho macOS/khác khi test local
+            top_out = subprocess.check_output("top -bn1 2>/dev/null | grep -i 'Cpu(s)'", shell=True, text=True, timeout=3)
+            nums = re.findall(r'([0-9.]+)', top_out)
+            if len(nums) >= 2:
+                cpu_val = int(float(nums[0]) + float(nums[1]))
+    except Exception:
+        pass
+
+    # RAM: Đọc /proc/meminfo chính xác với MemTotal và MemAvailable
+    try:
+        if os.path.exists('/proc/meminfo'):
+            with open('/proc/meminfo', 'r') as f:
+                mem_data = {}
+                for line in f:
+                    p = line.split(':')
+                    if len(p) == 2:
+                        mem_data[p[0].strip()] = float(p[1].split()[0])
+                total_m = mem_data.get('MemTotal', 0)
+                avail_m = mem_data.get('MemAvailable', 0)
+                if total_m > 0:
+                    mem_val = int(((total_m - avail_m) / total_m) * 100)
+        else:
+            free_out = subprocess.check_output("free 2>/dev/null | grep -i 'Mem:'", shell=True, text=True, timeout=3)
+            parts = free_out.split()
+            if len(parts) >= 3 and float(parts[1]) > 0:
+                mem_val = int(float(parts[2]) / float(parts[1]) * 100)
+    except Exception:
+        pass
+
+    # Disk: Sử dụng df -P / hoặc statvfs
+    try:
+        df_out = subprocess.check_output("df -P / 2>/dev/null | awk 'NR==2 {print $5}'", shell=True, text=True, timeout=3)
+        clean_str = re.sub(r'[^0-9]', '', df_out.strip() if df_out else '0')
+        if clean_str:
+            disk_val = int(clean_str)
+    except Exception:
+        pass
+
+    return cpu_val, mem_val, disk_val
+
+
 # ── Thread Tự Động Giám Sát (Auto-Tracking Daemon) ──────────────────────────
 DEFAULT_MONITOR_SERVICES = ["httpd", "sshd", "crond"]
 
@@ -429,39 +509,14 @@ def auto_tracker_loop():
     while True:
         now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 1. Cập nhật số liệu tài nguyên trực tiếp (Từng khối try riêng biệt để tuyệt đối không bị block nhau)
-        cpu_val = resource_metrics.get("cpu", 0)
-        mem_val = resource_metrics.get("mem", 0)
-        disk_val = resource_metrics.get("disk", 0)
+        # 1. Cập nhật số liệu tài nguyên an toàn
+        cpu_val, mem_val, disk_val = get_system_metrics_safe()
         
-        try:
-            top_out = subprocess.check_output("top -bn1 2>/dev/null | grep -i 'Cpu(s)'", shell=True, text=True, timeout=3)
-            nums = re.findall(r'([0-9.]+)', top_out)
-            if len(nums) >= 2:
-                cpu_val = int(float(nums[0]) + float(nums[1]))
-        except Exception:
-            pass
-        
-        try:
-            free_out = subprocess.check_output("free 2>/dev/null | grep -i 'Mem:'", shell=True, text=True, timeout=3)
-            parts = free_out.split()
-            if len(parts) >= 3:
-                mem_val = int(float(parts[2]) / float(parts[1]) * 100)
-        except Exception:
-            pass
-        
-        try:
-            df_out = subprocess.check_output("df / 2>/dev/null | awk 'NR==2 {print $5}'", shell=True, text=True, timeout=3)
-            clean_str = re.sub(r'[^0-9]', '', df_out.strip() if df_out else '0')
-            if clean_str:
-                disk_val = int(clean_str)
-        except Exception:
-            pass
-        
-        resource_metrics["cpu"] = cpu_val
-        resource_metrics["mem"] = mem_val
-        resource_metrics["disk"] = disk_val
-        resource_metrics["last_update"] = now_ts
+        with state_lock:
+            resource_metrics["cpu"] = cpu_val
+            resource_metrics["mem"] = mem_val
+            resource_metrics["disk"] = disk_val
+            resource_metrics["last_update"] = now_ts
         
         # 2. Cập nhật trạng thái từng service trực tiếp (Khối try riêng cho mỗi service)
         for svc_name in DEFAULT_MONITOR_SERVICES:
@@ -469,20 +524,32 @@ def auto_tracker_loop():
                 svc = get_or_create_service(svc_name)
                 res = subprocess.run(["systemctl", "is-active", "--quiet", svc_name], timeout=3)
                 if res.returncode == 0:
-                    svc["status"] = "healthy"
+                    with state_lock:
+                        svc["status"] = "healthy"
                 else:
                     # Nếu phát hiện down mà trước đó chưa crashed -> ghi nhận crash & tự phục hồi
-                    if svc["status"] != "crashed":
-                        svc["status"] = "crashed"
+                    should_trigger_crash = False
+                    with state_lock:
+                        if svc["status"] != "crashed":
+                            svc["status"] = "crashed"
+                            should_trigger_crash = True
+                    if should_trigger_crash:
                         print(f"[{now_ts}] 🚨 Auto-Tracker phát hiện CRASH: {svc_name}")
                         def handle_crash(s_name):
                             try:
-                                logs_out = subprocess.check_output(f"journalctl -u {s_name} -n 30 --no-pager 2>/dev/null", shell=True, text=True, timeout=5)
-                            except:
+                                res_log = subprocess.run(["journalctl", "-u", s_name, "-n", "30", "--no-pager"], capture_output=True, text=True, timeout=5)
+                                logs_out = res_log.stdout if res_log.returncode == 0 else "Không có log"
+                            except Exception:
                                 logs_out = "Không có log"
-                            subprocess.run(["systemctl", "restart", s_name], timeout=5)
+                            try:
+                                subprocess.run(["systemctl", "restart", s_name], timeout=5)
+                            except Exception as e:
+                                print(f"[{datetime.now()}] ❌ Lỗi restart {s_name}: {e}")
                             time.sleep(1)
-                            is_up = (subprocess.run(["systemctl", "is-active", "--quiet", s_name]).returncode == 0)
+                            try:
+                                is_up = (subprocess.run(["systemctl", "is-active", "--quiet", s_name], timeout=3).returncode == 0)
+                            except Exception:
+                                is_up = False
                             action = "restarted" if is_up else "restart_failed"
                             incident = {
                                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -491,25 +558,30 @@ def auto_tracker_loop():
                                 "ai_analysis": "⏳ **AI (Llama 3.1) đang phân tích log...**",
                                 "ai_done": False
                             }
-                            incidents_log.insert(0, incident)
+                            with state_lock:
+                                incidents_log.insert(0, incident)
+                                if len(incidents_log) > MAX_INCIDENTS:
+                                    del incidents_log[MAX_INCIDENTS:]
                             if is_up:
                                 delayed_recover(s_name, 3)
-                            analyze_and_notify(0, s_name, logs_out, action)
+                            analyze_and_notify(incident, s_name, logs_out, action)
                         threading.Thread(target=handle_crash, args=(svc_name,), daemon=True).start()
-                svc["last_check"] = now_ts
+                with state_lock:
+                    svc["last_check"] = now_ts
             except Exception:
                 pass
         
         # 3. Kiểm tra cảnh báo tài nguyên vượt ngưỡng
         try:
             now = time.time()
-            if (cpu_val >= THRESHOLD_CPU or mem_val >= THRESHOLD_MEM or disk_val >= THRESHOLD_DISK):
-                if (now - last_resource_alert_time) > RESOURCE_ALERT_COOLDOWN:
-                    threading.Thread(
-                        target=analyze_resource_alert,
-                        args=(cpu_val, mem_val, disk_val),
-                        daemon=True
-                    ).start()
+            with state_lock:
+                should_alert = (cpu_val >= THRESHOLD_CPU or mem_val >= THRESHOLD_MEM or disk_val >= THRESHOLD_DISK) and ((now - last_resource_alert_time) > RESOURCE_ALERT_COOLDOWN)
+            if should_alert:
+                threading.Thread(
+                    target=analyze_resource_alert,
+                    args=(cpu_val, mem_val, disk_val),
+                    daemon=True
+                ).start()
         except Exception:
             pass
         

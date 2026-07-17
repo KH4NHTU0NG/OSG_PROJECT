@@ -412,9 +412,20 @@
     </div>
 
     <script>
+        function escapeHTML(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function md(text) {
             if (!text) return '';
-            return text
+            let safeText = escapeHTML(text);
+            return safeText
                 .replace(/### (.*)/g, '<h3>$1</h3>')
                 .replace(/## (.*)/g, '<h2>$1</h2>')
                 .replace(/# (.*)/g, '<h2>$1</h2>')
@@ -430,6 +441,7 @@
         let prevIncJson = '';
         let prevServicesJson = '';
         let prevCpu = -1, prevMem = -1, prevDisk = -1;
+        let pollingTimer = null;
 
         // Chart Setup
         const ctx = document.getElementById('telemetryChart').getContext('2d');
@@ -450,142 +462,166 @@
                         borderWidth: 2, tension: 0.3, fill: true, pointRadius: 2.5
                     },
                     {
-                        label: 'Memory Usage (%)',
+                        label: 'RAM Usage (%)',
                         data: memData,
-                        borderColor: '#0d9488',
-                        backgroundColor: 'rgba(13, 148, 136, 0.04)',
+                        borderColor: '#7c3aed',
+                        backgroundColor: 'rgba(124, 58, 237, 0.05)',
                         borderWidth: 2, tension: 0.3, fill: true, pointRadius: 2.5
                     }
                 ]
             },
             options: {
-                responsive: true, maintainAspectRatio: false,
-                animation: { duration: 0 }, // Tắt animation lặp để không gián đoạn focus/gõ chữ
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 300 },
+                plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 11, family: 'Inter' } } } },
                 scales: {
-                    y: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } },
-                    x: { grid: { display: false } }
-                },
-                plugins: { legend: { labels: { color: '#0f172a', font: { size: 12, weight: 500 } } } }
+                    y: { min: 0, max: 100, ticks: { callback: v => v + '%', font: { size: 10 } }, grid: { color: 'var(--border)' } },
+                    x: { grid: { display: false }, ticks: { display: false } }
+                }
             }
         });
 
         function updateChart(cpu, mem) {
-            chart.data.datasets[0].data.shift();
-            chart.data.datasets[0].data.push(cpu);
-            chart.data.datasets[1].data.shift();
-            chart.data.datasets[1].data.push(mem);
-            chart.update('none');
+            labels.push(''); labels.shift();
+            cpuData.push(cpu); cpuData.shift();
+            memData.push(mem); memData.shift();
+            chart.update();
         }
 
         function getLevelColor(pct, th) { return pct >= th ? '#ef4444' : (pct >= th*0.7 ? '#f59e0b' : '#10b981'); }
         function getLevelText(pct, th) { return pct >= th ? 'Alert' : (pct >= th*0.7 ? 'Warning' : 'Normal'); }
 
-        // Main State Polling Loop without DOM Thrashing
-        function updateUI() {
-            fetch('/api/status')
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById('aiDot').className = 'dot ' + (data.ai_connected ? 'green' : 'red');
-                    document.getElementById('aiLabel').textContent = data.ai_connected ? 'AI Connected' : 'AI Offline';
-                    document.getElementById('emailDot').className = 'dot ' + (data.email_configured ? 'green' : 'red');
-                    document.getElementById('emailLabel').textContent = data.email_configured ? 'SMTP Active' : 'SMTP Offline';
+        // Main State Polling Loop with AbortController and Recursive setTimeout
+        async function updateUI() {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-                    if (data.resources) {
-                        const { cpu, mem, disk } = data.resources;
-                        if (cpu !== prevCpu || mem !== prevMem || disk !== prevDisk) {
-                            prevCpu = cpu; prevMem = mem; prevDisk = disk;
-                            document.getElementById('cpuVal').textContent = cpu + '%';
-                            document.getElementById('cpuBar').style.width = Math.min(cpu, 100) + '%';
-                            document.getElementById('cpuBar').style.background = getLevelColor(cpu, 90);
-                            document.getElementById('cpuStatus').textContent = getLevelText(cpu, 90);
-                            document.getElementById('cpuStatus').style.color = getLevelColor(cpu, 90);
+            try {
+                const r = await fetch('/api/status', { signal: controller.signal });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const data = await r.json();
+                clearTimeout(timeoutId);
 
-                            document.getElementById('memVal').textContent = mem + '%';
-                            document.getElementById('memBar').style.width = Math.min(mem, 100) + '%';
-                            document.getElementById('memBar').style.background = getLevelColor(mem, 85);
-                            document.getElementById('memStatus').textContent = getLevelText(mem, 85);
-                            document.getElementById('memStatus').style.color = getLevelColor(mem, 85);
+                // Update System Online Indicator -> GREEN
+                const sysDot = document.querySelector('.status-indicators .indicator:nth-child(3) .dot');
+                if (sysDot) { sysDot.className = 'dot green'; sysDot.nextElementSibling.textContent = 'System Online'; }
 
-                            document.getElementById('diskVal').textContent = disk + '%';
-                            document.getElementById('diskBar').style.width = Math.min(disk, 100) + '%';
-                            document.getElementById('diskBar').style.background = getLevelColor(disk, 90);
-                            document.getElementById('diskStatus').textContent = getLevelText(disk, 90);
-                            document.getElementById('diskStatus').style.color = getLevelColor(disk, 90);
+                document.getElementById('aiDot').className = 'dot ' + (data.ai_connected ? 'green' : 'red');
+                document.getElementById('aiLabel').textContent = data.ai_connected ? 'AI Connected' : 'AI Offline';
+                document.getElementById('emailDot').className = 'dot ' + (data.email_configured ? 'green' : 'red');
+                document.getElementById('emailLabel').textContent = data.email_configured ? 'SMTP Active' : 'SMTP Offline';
 
-                            updateChart(cpu, mem);
-                        }
+                if (data.resources) {
+                    const { cpu, mem, disk } = data.resources;
+                    if (cpu !== prevCpu || mem !== prevMem || disk !== prevDisk) {
+                        prevCpu = cpu; prevMem = mem; prevDisk = disk;
+                        document.getElementById('cpuVal').textContent = cpu + '%';
+                        document.getElementById('cpuBar').style.width = Math.min(cpu, 100) + '%';
+                        document.getElementById('cpuBar').style.background = getLevelColor(cpu, 90);
+                        document.getElementById('cpuStatus').textContent = getLevelText(cpu, 90);
+                        document.getElementById('cpuStatus').style.color = getLevelColor(cpu, 90);
+
+                        document.getElementById('memVal').textContent = mem + '%';
+                        document.getElementById('memBar').style.width = Math.min(mem, 100) + '%';
+                        document.getElementById('memBar').style.background = getLevelColor(mem, 85);
+                        document.getElementById('memStatus').textContent = getLevelText(mem, 85);
+                        document.getElementById('memStatus').style.color = getLevelColor(mem, 85);
+
+                        document.getElementById('diskVal').textContent = disk + '%';
+                        document.getElementById('diskBar').style.width = Math.min(disk, 100) + '%';
+                        document.getElementById('diskBar').style.background = getLevelColor(disk, 90);
+                        document.getElementById('diskStatus').textContent = getLevelText(disk, 90);
+                        document.getElementById('diskStatus').style.color = getLevelColor(disk, 90);
                     }
+                    // LUÔN cập nhật biểu đồ trên mỗi nhịp poll để trục thời gian trôi liên tục không bị đóng băng
+                    updateChart(cpu, mem);
+                }
 
-                    const services = Object.values(data.services);
-                    const servicesJson = JSON.stringify(services);
-                    if (servicesJson !== prevServicesJson) {
-                        prevServicesJson = servicesJson;
-                        const listEl = document.getElementById('serviceList');
-                        
-                        let onlineCount = 0;
-                        services.forEach(s => { if (s.status === 'healthy' || s.status === 'recovered') onlineCount++; });
-                        document.getElementById('svcCount').textContent = `${onlineCount} / ${services.length}`;
-                        document.getElementById('svcSummary').textContent = (onlineCount === services.length) ? 'All services online' : 'Attention required';
+                const servicesObj = data.services || {};
+                const services = Object.values(servicesObj);
+                const servicesJson = JSON.stringify(services);
+                if (servicesJson !== prevServicesJson) {
+                    prevServicesJson = servicesJson;
+                    const listEl = document.getElementById('serviceList');
+                    
+                    let onlineCount = 0;
+                    services.forEach(s => { if (s.status === 'healthy' || s.status === 'recovered') onlineCount++; });
+                    document.getElementById('svcCount').textContent = `${onlineCount} / ${services.length}`;
+                    document.getElementById('svcSummary').textContent = (onlineCount === services.length) ? 'All services online' : 'Attention required';
 
-                        if (services.length === 0) {
-                            listEl.innerHTML = `<div style="text-align:center; padding:20px; color:#64748b; font-size:13px;">Initializing telemetry...</div>`;
-                        } else {
-                            listEl.innerHTML = services.map(s => `
-                                <div class="service-item">
-                                    <div>
-                                        <div class="service-name">${s.service_name}</div>
-                                        <div class="service-time">Last check: ${s.last_check}</div>
-                                    </div>
-                                    <span class="badge badge-${s.status}">${badgeText[s.status] || 'Waiting'}</span>
+                    if (services.length === 0) {
+                        listEl.innerHTML = `<div style="text-align:center; padding:20px; color:#64748b; font-size:13px;">Initializing telemetry...</div>`;
+                    } else {
+                        listEl.innerHTML = services.map(s => `
+                            <div class="service-item">
+                                <div>
+                                    <div class="service-name">${escapeHTML(s.service_name)}</div>
+                                    <div class="service-time">Last check: ${escapeHTML(s.last_check)}</div>
                                 </div>
-                            `).join('');
-                        }
+                                <span class="badge badge-${escapeHTML(s.status)}">${badgeText[s.status] || 'Waiting'}</span>
+                            </div>
+                        `).join('');
                     }
+                }
 
-                    const incJson = JSON.stringify(data.incidents);
-                    if (incJson !== prevIncJson) {
-                        prevIncJson = incJson;
-                        const incBox = document.getElementById('incidentBox');
-                        if (data.incidents.length === 0) {
-                            incBox.innerHTML = '<div style="text-align:center; padding:36px; color:#64748b; font-size:13px; border:1px dashed var(--border); border-radius:8px;">No active incidents reported. System operating within optimal thresholds.</div>';
-                        } else {
-                            incBox.innerHTML = data.incidents.map(inc => {
-                                let fixCmd = 'top -bn1 | head -15';
-                                if (inc.service.includes('Resource Alert')) {
-                                    if (inc.service.includes('Disk')) fixCmd = 'df -h / && du -sh /var/log/* /tmp/* 2>/dev/null | sort -rh | head -6';
-                                    else if (inc.service.includes('RAM')) fixCmd = 'ps aux --sort=-%mem | head -8';
-                                    else fixCmd = 'ps aux --sort=-%cpu | head -8';
-                                } else {
-                                    fixCmd = `systemctl status ${inc.service} --no-pager && journalctl -u ${inc.service} -n 15 --no-pager`;
-                                }
+                const incidents = Array.isArray(data.incidents) ? data.incidents : [];
+                const incJson = JSON.stringify(incidents);
+                if (incJson !== prevIncJson) {
+                    prevIncJson = incJson;
+                    const incBox = document.getElementById('incidentBox');
+                    if (incidents.length === 0) {
+                        incBox.innerHTML = '<div style="text-align:center; padding:36px; color:#64748b; font-size:13px; border:1px dashed var(--border); border-radius:8px;">No active incidents reported. System operating within optimal thresholds.</div>';
+                    } else {
+                        incBox.innerHTML = incidents.map(inc => {
+                            let fixCmd = 'top -bn1 | head -15';
+                            if (inc.service && inc.service.includes('Resource Alert')) {
+                                if (inc.service.includes('Disk')) fixCmd = 'df -h / && du -sh /var/log/* /tmp/* 2>/dev/null | sort -rh | head -6';
+                                else if (inc.service.includes('RAM')) fixCmd = 'ps aux --sort=-%mem | head -8';
+                                else fixCmd = 'ps aux --sort=-%cpu | head -8';
+                            } else {
+                                fixCmd = `systemctl status ${inc.service} --no-pager && journalctl -u ${inc.service} -n 15 --no-pager`;
+                            }
 
-                                return `
-                                <div class="incident-card ${inc.ai_done ? 'resolved' : ''}">
-                                    <div class="incident-top">
-                                        <span class="incident-status" style="color: ${inc.ai_done ? 'var(--success-text)' : 'var(--danger-text)'}">
-                                            ${inc.ai_done ? 'Resolved / Analysis Ready' : 'Processing Diagnostics...'}
-                                        </span>
-                                        <span class="incident-time">${inc.time}</span>
-                                    </div>
-                                    <div class="incident-service">${inc.service}</div>
-                                    <div class="incident-analysis">${md(inc.ai_analysis)}</div>
-                                    <button class="btn-execute" onclick="runOneClick('${fixCmd.replace(/'/g, "\\'")}')">
-                                        Execute Diagnostic Fix (${fixCmd.split('&&')[0]})
-                                    </button>
-                                </div>`;
-                            }).join('');
-                        }
+                            const encodedCmd = encodeURIComponent(fixCmd);
+                            const displayCmd = escapeHTML(fixCmd.split('&&')[0]);
+
+                            return `
+                            <div class="incident-card ${inc.ai_done ? 'resolved' : ''}">
+                                <div class="incident-top">
+                                    <span class="incident-status" style="color: ${inc.ai_done ? 'var(--success-text)' : 'var(--danger-text)'}">
+                                        ${inc.ai_done ? 'Resolved / Analysis Ready' : 'Processing Diagnostics...'}
+                                    </span>
+                                    <span class="incident-time">${escapeHTML(inc.time)}</span>
+                                </div>
+                                <div class="incident-service">${escapeHTML(inc.service)}</div>
+                                <div class="incident-analysis">${md(inc.ai_analysis)}</div>
+                                <button class="btn-execute" onclick="runOneClickEncoded('${encodedCmd}')">
+                                    Execute Diagnostic Fix (${displayCmd})
+                                </button>
+                            </div>`;
+                        }).join('');
                     }
-                })
-                .catch(() => {});
+                }
+            } catch (err) {
+                clearTimeout(timeoutId);
+                const sysDot = document.querySelector('.status-indicators .indicator:nth-child(3) .dot');
+                if (sysDot) { sysDot.className = 'dot red'; sysDot.nextElementSibling.textContent = 'Connection Lost'; }
+            } finally {
+                pollingTimer = setTimeout(updateUI, 1000);
+            }
         }
 
-        setInterval(updateUI, 1000);
         updateUI();
+
+        function runOneClickEncoded(encodedCmd) {
+            const cmd = decodeURIComponent(encodedCmd);
+            runOneClick(cmd);
+        }
 
         function runOneClick(cmd) {
             document.getElementById('termModal').style.display = 'flex';
-            document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${cmd}</div>Executing on CentOS server...`;
+            document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${escapeHTML(cmd)}</div>Executing on CentOS server...`;
             
             fetch('/api/execute_fix', {
                 method: 'POST',
@@ -594,10 +630,10 @@
             })
             .then(r => r.json())
             .then(data => {
-                document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${cmd}</div>${data.output}`;
+                document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${escapeHTML(cmd)}</div>${escapeHTML(data.output)}`;
             })
             .catch(err => {
-                document.getElementById('termOutput').innerHTML = `Connection error: ${err}`;
+                document.getElementById('termOutput').innerHTML = `Connection error: ${escapeHTML(err)}`;
             });
         }
         function closeTerminal() { document.getElementById('termModal').style.display = 'none'; }
@@ -611,7 +647,11 @@
             const box = document.getElementById('chatMessages');
             const bubble = document.createElement('div');
             bubble.className = 'chat-bubble ' + sender;
-            bubble.innerHTML = (sender === 'ai') ? md(text) : text;
+            if (sender === 'ai') {
+                bubble.innerHTML = md(text);
+            } else {
+                bubble.textContent = text;
+            }
             box.appendChild(bubble);
             box.scrollTop = box.scrollHeight;
         }
@@ -650,7 +690,7 @@
                 const loader = document.getElementById(loadId);
                 if (loader) loader.remove();
                 if (data.executed_command) {
-                    appendMessage('ai', `<b>Executed command:</b> <code>${data.executed_command}</code>\n\n${data.reply}`);
+                    appendMessage('ai', `<b>Executed command:</b> <code>${escapeHTML(data.executed_command)}</code>\n\n${md(data.reply)}`);
                 } else {
                     appendMessage('ai', data.reply);
                 }
