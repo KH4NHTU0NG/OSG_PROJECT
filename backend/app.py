@@ -409,6 +409,29 @@ def execute_fix():
         return jsonify({"output": f"Lỗi thực thi: {e}", "status": "error"}), 500
 
 
+# ── Thread Tự Động Giám Sát (Auto-Tracking Daemon) ──────────────────────────
+DEFAULT_MONITOR_SERVICES = ["httpd", "sshd", "crond"]
+
+def auto_tracker_loop():
+    """Tự động chạy agent giám sát mỗi 5 giây sau khi app.py khởi động (hoàn toàn không cần gõ lệnh hay bật timer)."""
+    script_path = "/opt/ai-service-monitor/agent/ai_monitor_service.sh"
+    # Khởi tạo ngay trạng thái ban đầu để Dashboard hiển thị ngay lập tức
+    for svc in DEFAULT_MONITOR_SERVICES:
+        get_or_create_service(svc)
+    
+    while True:
+        try:
+            if os.path.exists(script_path):
+                subprocess.run([script_path] + DEFAULT_MONITOR_SERVICES, capture_output=True, timeout=12)
+        except Exception:
+            pass
+        time.sleep(5)
+
+# Khởi động ngay luồng theo dõi tự động ngầm bên dưới
+auto_thread = threading.Thread(target=auto_tracker_loop, daemon=True)
+auto_thread.start()
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("  🚀 AI SERVICE MONITOR DASHBOARD v4.0 (Enterprise SOC)")
