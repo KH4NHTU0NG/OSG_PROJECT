@@ -23,7 +23,7 @@ SMTP_APP_PASSWORD = os.getenv("SMTP_APP_PASSWORD")
 THRESHOLD_CPU  = 90   # %
 THRESHOLD_MEM  = 85   # %
 THRESHOLD_DISK = 90   # %
-RESOURCE_ALERT_COOLDOWN = 300  # 5 phút cooldown giữa các lần cảnh báo
+RESOURCE_ALERT_COOLDOWN = 10   # 10 giây cooldown giữa các lần cảnh báo (mode Demo/Test)
 
 # ── Trạng thái hệ thống ─────────────────────────────────────────
 monitored_services = {}
