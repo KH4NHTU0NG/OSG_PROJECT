@@ -85,26 +85,34 @@ def analyze_and_notify(incident_index, service, logs, action_taken):
     # 1. Gọi Groq AI
     if groq_client:
         try:
-            prompt = f"""Bạn là chuyên gia DevOps Senior. Dịch vụ '{service}' trên CentOS 10 vừa bị phát hiện KHÔNG hoạt động.
+            prompt = f"""Bạn là Kỹ sư Trưởng DevOps AIOps (Tuân thủ nghiêm ngặt nguyên tắc Zero Hallucination).
+Dịch vụ '{service}' trên CentOS 10 vừa bị dừng hoạt động.
 
-Log hệ thống (50 dòng cuối):
+Log hệ thống thu thập được (30 dòng cuối):
+```text
 {logs[:2000]}
+```
 
-Hành động hệ thống đã tự động thực hiện: {action_taken}
+QUY TẮC BẮT BUỘC TUYỆT ĐỐI (KHÔNG ĐƯỢC SUY DIỄN HAY TỰ TẠO RA LỖI KHÔNG CÓ TRONG LOG):
+1. Phân loại sự cố dựa TRỰC TIẾP VÀ CHÍNH XÁC theo từ khóa trong Log:
+   - Nếu log có chữ "Stopping", "Stopped", "Deactivated successfully", "shutting down", hoặc log trống/không xuất hiện lỗi nghiêm trọng:
+     → KẾT LUẬN NGAY: **Dịch vụ được tắt thủ công hợp lệ bởi Quản trị viên (Graceful Stop qua lệnh `systemctl stop`). KHÔNG phải lỗi hệ thống hay Segfault.** Mức độ: **LOW (Thông tin)**.
+   - Nếu log xuất hiện chữ "signal 11", "SIGSEGV", "Segmentation fault":
+     → KẾT LUẬN: **Lỗi tràn bộ nhớ / truy cập vùng nhớ cấm (Segfault - Signal 11).** Mức độ: **CRITICAL**.
+   - Nếu log xuất hiện chữ "signal 9", "SIGKILL", "OOM", "Out of memory":
+     → KẾT LUẬN: **Tiến trình bị tiêu diệt cưỡng chế (OOM Killer hoặc `kill -9`).** Mức độ: **HIGH**.
+   - Nếu log có lỗi cú pháp / cấu hình sai ("Syntax error", "Failed to start", v.v.):
+     → KẾT LUẬN: **Lỗi cấu hình dịch vụ.** Mức độ: **HIGH**.
 
-Nhiệm vụ:
-1. Xác định đây là lỗi hệ thống (Crash/OOM/Segfault/Bị kill) hay do Admin tắt thủ công (systemctl stop)?
-   - Nếu thấy "Stopped" / "Stopping" bình thường → Admin tắt thủ công.
-   - Nếu thấy "killed" / "segfault" / "error" / "failed" → Lỗi hệ thống.
-2. Phân tích nguyên nhân gốc rễ (Root Cause).
-3. Đề xuất cách khắc phục cụ thể (với lệnh Linux).
-4. Đánh giá mức độ nghiêm trọng: LOW / MEDIUM / HIGH / CRITICAL.
-
-Trả lời ngắn gọn, chuyên nghiệp, bằng tiếng Việt, định dạng Markdown."""
+2. Trình bày báo cáo ngắn gọn bằng tiếng Việt (Markdown):
+   - **Phân loại:** [Tắt thủ công / Crash Segfault / Bị Kill / Lỗi cấu hình]
+   - **Nguyên nhân gốc rễ:** [Trích dẫn chính xác từ log theo đúng quy tắc 1. KHÔNG BAO GIỜ tự tạo ra lỗi Segfault nếu log chỉ là Stopping/Stopped]
+   - **Hành động tự động:** {action_taken}
+   - **Đánh giá & Khuyến nghị:** [Lời khuyên cụ thể và lệnh Linux phù hợp]"""
 
             chat = groq_client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "Bạn là AI chuyên phân tích sự cố hệ thống Linux. Trả lời chuyên nghiệp, ngắn gọn."},
+                    {"role": "system", "content": "Bạn là AI DevOps chuyên phân tích chính xác tuyệt đối theo log thực tế (Zero Hallucination). Không bao giờ suy diễn hay tự bịa ra lỗi Segfault nếu log chỉ là tắt thủ công (Stopping/Stopped)."},
                     {"role": "user", "content": prompt}
                 ],
                 model="llama-3.1-8b-instant",
