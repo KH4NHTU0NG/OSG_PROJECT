@@ -103,6 +103,47 @@
             padding: 10px; border-radius: 8px; font-size: 13px;
         }
 
+        /* ── Resource Monitor Section ─────────────────────────── */
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .resource-card {
+            background: linear-gradient(145deg, rgba(20,25,45,0.9), rgba(15,20,35,0.95));
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 18px;
+        }
+        .resource-card .res-label {
+            font-size: 13px; font-weight: 600; color: #7a8ba6;
+            margin-bottom: 10px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .resource-card .res-value {
+            font-size: 28px; font-weight: 800; color: #fff;
+            margin-bottom: 10px;
+        }
+        .res-bar-bg {
+            width: 100%; height: 8px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .res-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease, background 0.6s ease;
+        }
+        .res-bar-fill.level-ok   { background: linear-gradient(90deg, #00ff88, #00cc66); box-shadow: 0 0 8px rgba(0,255,136,0.3); }
+        .res-bar-fill.level-warn { background: linear-gradient(90deg, #ffaa00, #ff8800); box-shadow: 0 0 8px rgba(255,170,0,0.3); }
+        .res-bar-fill.level-crit { background: linear-gradient(90deg, #ff4466, #ff2244); box-shadow: 0 0 12px rgba(255,68,102,0.5); animation: pulse-red 1.5s infinite; }
+        .res-threshold {
+            font-size: 10px; color: #556; margin-top: 6px;
+            display: flex; justify-content: space-between;
+        }
+
         /* Incidents */
         .incident-card {
             background: linear-gradient(145deg, rgba(25,15,20,0.9), rgba(20,12,18,0.95));
@@ -174,6 +215,11 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+        @media (max-width: 768px) {
+            .resource-grid { grid-template-columns: 1fr; }
+            .header { flex-direction: column; gap: 12px; }
+        }
     </style>
 </head>
 <body>
@@ -203,6 +249,29 @@
         <div class="section-title">📊 Monitored Services</div>
         <div id="serviceGrid" class="service-grid"></div>
 
+        <!-- Resource Monitor -->
+        <div class="section-title">⚙️ System Resources</div>
+        <div class="resource-grid">
+            <div class="resource-card">
+                <div class="res-label"><span>🖥️ CPU Usage</span><span id="cpuIcon">✅</span></div>
+                <div class="res-value" id="cpuValue">0%</div>
+                <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="cpuBar" style="width:0%"></div></div>
+                <div class="res-threshold"><span>Ngưỡng: 90%</span><span id="cpuStatus">OK</span></div>
+            </div>
+            <div class="resource-card">
+                <div class="res-label"><span>🧠 RAM Usage</span><span id="memIcon">✅</span></div>
+                <div class="res-value" id="memValue">0%</div>
+                <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="memBar" style="width:0%"></div></div>
+                <div class="res-threshold"><span>Ngưỡng: 85%</span><span id="memStatus">OK</span></div>
+            </div>
+            <div class="resource-card">
+                <div class="res-label"><span>💾 Disk Usage</span><span id="diskIcon">✅</span></div>
+                <div class="res-value" id="diskValue">0%</div>
+                <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="diskBar" style="width:0%"></div></div>
+                <div class="res-threshold"><span>Ngưỡng: 90%</span><span id="diskStatus">OK</span></div>
+            </div>
+        </div>
+
         <!-- Incidents -->
         <div class="section-title">🔥 AI Incident Analysis Log</div>
         <div id="incidentList"></div>
@@ -225,19 +294,47 @@
 
         const badgeText = {recovered:'⚡ RECOVERED', healthy:'✅ HEALTHY', crashed:'🔴 CRASHED'};
         let prevIncJson = '';
-        let knownServices = {};
+
+        function getBarLevel(pct, threshold) {
+            if (pct >= threshold) return 'level-crit';
+            if (pct >= threshold * 0.7) return 'level-warn';
+            return 'level-ok';
+        }
+
+        function updateResource(id, pct, threshold) {
+            const bar = document.getElementById(id + 'Bar');
+            const val = document.getElementById(id + 'Value');
+            const icon = document.getElementById(id + 'Icon');
+            const status = document.getElementById(id + 'Status');
+
+            if (val) val.textContent = pct + '%';
+            if (bar) {
+                bar.style.width = Math.min(pct, 100) + '%';
+                bar.className = 'res-bar-fill ' + getBarLevel(pct, threshold);
+            }
+            if (pct >= threshold) {
+                if (icon) icon.textContent = '🔴';
+                if (status) { status.textContent = '⚠️ VUOT NGUONG'; status.style.color = '#ff4466'; }
+            } else if (pct >= threshold * 0.7) {
+                if (icon) icon.textContent = '⚠️';
+                if (status) { status.textContent = 'Cảnh giác'; status.style.color = '#ffaa00'; }
+            } else {
+                if (icon) icon.textContent = '✅';
+                if (status) { status.textContent = 'OK'; status.style.color = '#00ff88'; }
+            }
+        }
 
         function updateUI() {
             fetch('/api/status')
                 .then(r => r.json())
                 .then(data => {
-                    // 1. Indicators (textContent only — zero layout impact)
+                    // 1. Indicators
                     document.getElementById('aiDot').className = 'dot ' + (data.ai_connected ? 'green' : 'red');
                     document.getElementById('aiLabel').textContent = data.ai_connected ? 'AI ✓' : 'AI ✗';
                     document.getElementById('emailDot').className = 'dot ' + (data.email_configured ? 'green' : 'red');
                     document.getElementById('emailLabel').textContent = data.email_configured ? 'Email ✓' : 'Email ✗';
 
-                    // 2. Service cards — DOM manipulation (KHÔNG innerHTML, KHÔNG giật scroll)
+                    // 2. Service cards — DOM manipulation
                     const grid = document.getElementById('serviceGrid');
                     const services = Object.values(data.services);
                     if (services.length === 0 && !grid.querySelector('.empty-state')) {
@@ -249,10 +346,8 @@
                     services.forEach(s => {
                         let card = document.getElementById('svc-' + s.service_name);
                         if (!card) {
-                            // Xóa empty-state nếu có
                             const empty = grid.querySelector('.empty-state');
                             if (empty) empty.remove();
-                            // Tạo card MỚI (chỉ lần đầu)
                             card = document.createElement('div');
                             card.className = 'service-card';
                             card.id = 'svc-' + s.service_name;
@@ -261,7 +356,6 @@
                                 <span class="badge" id="badge-${s.service_name}"></span>`;
                             grid.appendChild(card);
                         }
-                        // Cập nhật text (không thay đổi DOM structure → không giật)
                         const timeEl = document.getElementById('time-' + s.service_name);
                         const badgeEl = document.getElementById('badge-' + s.service_name);
                         if (timeEl) timeEl.textContent = 'Last check: ' + s.last_check;
@@ -271,7 +365,14 @@
                         }
                     });
 
-                    // 3. Incidents — chỉ render khi data thay đổi
+                    // 3. Resources — cập nhật thanh progress bar (textContent only, no layout thrash)
+                    if (data.resources) {
+                        updateResource('cpu', data.resources.cpu, 90);
+                        updateResource('mem', data.resources.mem, 85);
+                        updateResource('disk', data.resources.disk, 90);
+                    }
+
+                    // 4. Incidents — chỉ render khi data thay đổi
                     const incJson = JSON.stringify(data.incidents);
                     if (incJson !== prevIncJson) {
                         prevIncJson = incJson;
