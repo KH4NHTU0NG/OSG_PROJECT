@@ -61,8 +61,11 @@ ai-service-monitor/
 
 ## 🚀 Hướng Dẫn Cài Đặt & Khởi Động (CentOS 10)
 
-### ⚠️ Lệnh Dọn Dẹp / Reset Sạch (Khôi phục 0% để Demo cài đặt từ bước Setting Key)
-Nếu bạn muốn **xóa trắng hoàn toàn hệ thống, kill tiến trình cũ và xóa cả cấu hình cũ** để trình diễn thực hành cài đặt từ con số 0 (bắt đầu từ Bước 1 clone code và Bước 3 nhập API Key `.env`), hãy chạy cụm lệnh sau trước khi cài đặt:
+### 🔥 QUY TRÌNH TRÌNH DIỄN CÀI ĐẶT TRỰC TIẾP TỪ CON SỐ 0 (Từ Bước Clone Code & Nhập Key)
+Dưới đây là kịch bản chuẩn từng bước để bạn thao tác trực tiếp trước Thầy Cô khi muốn trình diễn việc **cài đặt mới hoàn toàn từ con số 0 (không sử dụng code cũ hay key cũ)**:
+
+#### 🗑️ Bước 0: Dọn dẹp sạch sẽ máy chủ (Xóa code cũ + Kill hết tiến trình)
+Chạy khối lệnh này trên Terminal Linux để xóa trắng dự án, giải phóng cống 5000 và xóa cấu hình cũ:
 ```bash
 # 1. Dừng và xóa toàn bộ timer/service giám sát cũ
 sudo systemctl stop ai-monitor@*.timer ai-monitor@*.service 2>/dev/null
@@ -84,34 +87,29 @@ sudo rm -rf /opt/ai-service-monitor /tmp/backend_env.bak
 
 ---
 
-### Bước 1: Tải mã nguồn về máy Linux & Phân quyền
+#### 🎬 BẮT ĐẦU TRÌNH DIỄN CÀI ĐẶT TRỰC TIẾP TRƯỚC HỘI ĐỒNG:
 
+##### 1️⃣ Clone mã nguồn từ GitHub & Phân quyền
 ```bash
 sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
 sudo chown -R $USER:$USER /opt/ai-service-monitor
 cd /opt/ai-service-monitor
 ```
 
-### Bước 2: Cài đặt thư viện Python & Cấp quyền
-
+##### 2️⃣ Cài đặt thư viện Python & Cấp quyền thực thi Agent
 ```bash
 sudo pip3 install --break-system-packages flask python-dotenv groq
-sudo chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
+chmod +x agent/ai_monitor_service.sh
 ```
 
-### Bước 3: Cấu hình API Key (Groq AI) & Email (Gmail SMTP)
+##### 3️⃣ Cấu hình Groq API Key (`.env`) - *Bước ghi điểm quan trọng*
+- **Lấy Groq API Key (Miễn phí):** Truy cập [console.groq.com](https://console.groq.com) → **API Keys** → Copy key `gsk_...`.
+- **Lấy Gmail App Password:** Truy cập [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) tạo mật khẩu ứng dụng 16 ký tự.
 
-1. **Lấy Groq API Key (Miễn phí):**
-   - Truy cập [console.groq.com](https://console.groq.com), đăng nhập bằng Gmail.
-   - Vào **API Keys** → **Create API Key** → Copy key bắt đầu bằng `gsk_...`.
-2. **Lấy Gmail App Password:**
-   - Truy cập [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
-   - Tạo App Password mới (16 ký tự, ví dụ: `abcd efgh ijkl mnop`).
-
-Tạo file cấu hình `.env` từ file mẫu:
+Tạo file `.env` từ file mẫu và chỉnh sửa:
 ```bash
-cp /opt/ai-service-monitor/backend/.env.example /opt/ai-service-monitor/backend/.env
-nano /opt/ai-service-monitor/backend/.env
+cp backend/.env.example backend/.env
+nano backend/.env
 ```
 Nội dung file `.env`:
 ```env
@@ -120,22 +118,14 @@ SMTP_EMAIL=your_email@gmail.com
 SMTP_APP_PASSWORD=abcd efgh ijkl mnop
 ```
 
-### Bước 4: Cài đặt systemd Service & Timer
-
+##### 4️⃣ Cài đặt systemd Service/Timer & Khởi chạy Backend Dashboard
 ```bash
-sudo cp /opt/ai-service-monitor/agent/ai-monitor@.service /etc/systemd/system/
-sudo cp /opt/ai-service-monitor/agent/ai-monitor@.timer /etc/systemd/system/
+sudo cp agent/ai-monitor@.service agent/ai-monitor@.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-```
-
-### Bước 5: Khởi động Backend Dashboard (quyền sudo -E để AI có quyền restart dịch vụ)
-
-```bash
-cd /opt/ai-service-monitor/backend
-sudo -E nohup python3 app.py > backend.log 2>&1 &
+cd backend && sudo -E nohup python3 app.py > backend.log 2>&1 &
 sleep 2 && sudo tail -n 15 backend.log
 ```
-*Giao diện Dashboard sẽ hoạt động tại: `http://<IP-của-máy>:5000`*
+🎉 **Hoàn tất cài đặt!** Giao diện Dashboard đã bật sáng tại `http://<IP-của-máy>:5000`. Bạn có thể mở trình duyệt và tiến hành kích hoạt các service cần theo dõi ngay!
 
 ### Bước 6: Kích hoạt tự động theo dõi cho các Dịch vụ
 
