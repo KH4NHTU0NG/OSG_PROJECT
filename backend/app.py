@@ -421,8 +421,50 @@ def auto_tracker_loop():
     
     while True:
         try:
+            # 1. Chạy script giám sát nếu có
             if os.path.exists(script_path):
                 subprocess.run([script_path] + DEFAULT_MONITOR_SERVICES, capture_output=True, timeout=12)
+            
+            # 2. Đồng thời kiểm tra trực tiếp ngay trong Python để đảm bảo không bao giờ bị kẹt WAITING
+            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Kiểm tra tài nguyên
+            cpu_val = resource_metrics.get("cpu", 0)
+            mem_val = resource_metrics.get("mem", 0)
+            disk_val = resource_metrics.get("disk", 0)
+            
+            try:
+                top_out = subprocess.check_output("top -bn1 2>/dev/null | grep -i 'Cpu(s)'", shell=True, text=True)
+                nums = re.findall(r'([0-9.]+)', top_out)
+                if len(nums) >= 2: cpu_val = int(float(nums[0]) + float(nums[1]))
+            except: pass
+            
+            try:
+                free_out = subprocess.check_output("free 2>/dev/null | grep -i 'Mem:'", shell=True, text=True)
+                parts = free_out.split()
+                if len(parts) >= 3: mem_val = int(float(parts[2]) / float(parts[1]) * 100)
+            except: pass
+            
+            try:
+                df_out = subprocess.check_output("df / 2>/dev/null | awk 'NR==2 {print $5}'", shell=True, text=True)
+                disk_val = int(re.sub(r'[^0-9]', '', df_out or '0'))
+            except: pass
+            
+            resource_metrics["cpu"] = cpu_val
+            resource_metrics["mem"] = mem_val
+            resource_metrics["disk"] = disk_val
+            resource_metrics["last_update"] = now_ts
+            
+            # Kiểm tra trạng thái service
+            for svc_name in DEFAULT_MONITOR_SERVICES:
+                svc = get_or_create_service(svc_name)
+                res = subprocess.run(["systemctl", "is-active", "--quiet", svc_name])
+                if res.returncode == 0:
+                    svc["status"] = "healthy"
+                elif svc["status"] != "crashed":
+                    svc["status"] = "crashed"
+                svc["last_check"] = now_ts
+                
         except Exception:
             pass
         time.sleep(5)
