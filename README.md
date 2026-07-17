@@ -131,6 +131,31 @@ sudo systemctl enable --now ai-monitor@crond.timer
 
 ## 🎬 Các Kịch Bản Demo & Kiểm Thử
 
+### Bước 0: Chuẩn Bị & Làm Sạch Môi Trường (Clean Setup từ con số 0)
+Trước khi Demo, chạy cụm lệnh sau với quyền `root` để xóa trắng các tiến trình/timer cũ và chuẩn bị môi trường sạch 100%:
+```bash
+# 1. Dừng & xóa toàn bộ systemd timer/service giám sát cũ
+sudo systemctl stop ai-monitor@*.timer ai-monitor@*.service 2>/dev/null
+sudo systemctl disable ai-monitor@*.timer 2>/dev/null
+sudo rm -f /etc/systemd/system/ai-monitor@.*
+sudo systemctl daemon-reload
+
+# 2. Tiêu diệt tiến trình Backend cũ và các tiến trình stress test tồn dư
+sudo fuser -k 5000/tcp 2>/dev/null
+sudo pkill -9 -f app.py 2>/dev/null
+sudo pkill -9 -f stress 2>/dev/null
+
+# 3. Xóa trắng thư mục dự án cũ và tải mới hoàn toàn từ GitHub
+sudo rm -rf /opt/ai-service-monitor
+sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
+
+# 4. Khởi động lại Backend sạch (chạy ngầm)
+chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
+cd /opt/ai-service-monitor/backend && nohup python3 app.py > backend.log 2>&1 &
+```
+
+---
+
 ### Kịch bản 1: Giả lập Quản trị viên tắt dịch vụ thủ công (`systemctl stop`)
 **Mục tiêu:** Chứng minh hệ thống nhận diện được lệnh tắt thủ công, tự động khôi phục và AI phân tích chính xác log.
 ```bash

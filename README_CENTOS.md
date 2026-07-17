@@ -65,6 +65,31 @@ chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
 
 ## 5. Kịch Bản Demo (Action!)
 
+### Bước 0: Dọn Dẹp / Reset Sạch Thư Mục Cũ (Clean Setup từ đầu)
+Nếu bạn muốn làm lại demo từ đầu hoặc xóa sạch cài đặt cũ trên máy chủ CentOS, chạy cụm lệnh sau với quyền root:
+```bash
+# 1. Dừng & xóa toàn bộ systemd timer/service giám sát cũ
+sudo systemctl stop ai-monitor@*.timer ai-monitor@*.service 2>/dev/null
+sudo systemctl disable ai-monitor@*.timer 2>/dev/null
+sudo rm -f /etc/systemd/system/ai-monitor@.*
+sudo systemctl daemon-reload
+
+# 2. Tiêu diệt tiến trình Backend cũ và stress test
+sudo fuser -k 5000/tcp 2>/dev/null
+sudo pkill -9 -f app.py 2>/dev/null
+sudo pkill -9 -f stress 2>/dev/null
+
+# 3. Xóa trắng thư mục cũ và clone mới từ GitHub
+sudo rm -rf /opt/ai-service-monitor
+sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
+
+# 4. Cấp quyền và chạy lại Backend
+chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
+cd /opt/ai-service-monitor/backend && nohup python3 app.py > backend.log 2>&1 &
+```
+
+---
+
 1. **Mở Trình Duyệt:** Truy cập `http://<IP_CENTOS_CỦA_BẠN>:5000`
    Bạn sẽ thấy Dashboard hiện "HEALTHY".
 2. **Crash Dịch Vụ:** Trên terminal CentOS, gõ:
