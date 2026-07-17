@@ -21,10 +21,13 @@ sudo systemctl disable ai-monitor@*.timer 2>/dev/null
 sudo rm -f /etc/systemd/system/ai-monitor@.*
 sudo systemctl daemon-reload
 
-# 2. Tiêu diệt tiến trình Backend cũ và các tiến trình stress test tồn dư
+# 2. Tiêu diệt triệt để tiến trình đang chiếm giữ Port 5000 và stress test
+PID=$(sudo ss -lptn 'sport = :5000' 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | head -1)
+[ -n "$PID" ] && sudo kill -9 "$PID" 2>/dev/null
 sudo fuser -k 5000/tcp 2>/dev/null
 sudo pkill -9 -f app.py 2>/dev/null
 sudo pkill -9 -f stress 2>/dev/null
+sleep 1
 
 # 3. Sao lưu cấu hình .env (bảo toàn API Key), xóa thư mục cũ và clone mới từ GitHub
 sudo cp /opt/ai-service-monitor/backend/.env /tmp/backend_env.bak 2>/dev/null
