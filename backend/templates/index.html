@@ -425,15 +425,49 @@
         function md(text) {
             if (!text) return '';
             let safeText = escapeHTML(text);
-            return safeText
-                .replace(/### (.*)/g, '<h3>$1</h3>')
-                .replace(/## (.*)/g, '<h2>$1</h2>')
-                .replace(/# (.*)/g, '<h2>$1</h2>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-                .replace(/^\- (.*)/gm, '<li>$1</li>')
-                .replace(/^\d+\. (.*)/gm, '<li>$1</li>')
+            
+            // Convert markdown tables
+            let lines = safeText.split('\n');
+            let inTable = false;
+            let tableHTML = '';
+            let newLines = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+                if (line.startsWith('|') && line.endsWith('|')) {
+                    let cells = line.split('|').map(c => c.trim()).slice(1, -1);
+                    if (cells.every(c => /^[\-\:\s]+$/.test(c))) continue;
+                    if (!inTable) {
+                        inTable = true;
+                        tableHTML = '<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;background:rgba(255,255,255,0.03);border:1px solid var(--border-color);border-radius:6px;overflow:hidden;"><thead><tr>' + cells.map(c => `<th style="padding:8px;border:1px solid var(--border-color);background:rgba(255,255,255,0.07);text-align:left;color:var(--accent-cyan);">${c}</th>`).join('') + '</tr></thead><tbody>';
+                    } else {
+                        tableHTML += '<tr>' + cells.map(c => `<td style="padding:8px;border:1px solid var(--border-color);">${c}</td>`).join('') + '</tr>';
+                    }
+                } else {
+                    if (inTable) {
+                        tableHTML += '</tbody></table>';
+                        newLines.push(tableHTML);
+                        inTable = false;
+                        tableHTML = '';
+                    }
+                    newLines.push(lines[i]);
+                }
+            }
+            if (inTable) {
+                tableHTML += '</tbody></table>';
+                newLines.push(tableHTML);
+            }
+            
+            let processed = newLines.join('\n');
+            return processed
+                .replace(/### (.*)/g, '<h3 style="margin:10px 0 6px;color:var(--accent-cyan);">$1</h3>')
+                .replace(/## (.*)/g, '<h2 style="margin:12px 0 8px;color:var(--text-main);">$1</h2>')
+                .replace(/# (.*)/g, '<h2 style="margin:12px 0 8px;color:var(--text-main);">$1</h2>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#fff;">$1</strong>')
+                .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:2px 5px;border-radius:4px;color:#f43f5e;font-family:monospace;">$1</code>')
+                .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre style="background:#0f172a;padding:10px;border-radius:6px;border:1px solid #334155;overflow-x:auto;margin:8px 0;"><code>$1</code></pre>')
+                .replace(/^\- (.*)/gm, '<li style="margin-left:16px;">$1</li>')
+                .replace(/^\d+\. (.*)/gm, '<li style="margin-left:16px;">$1</li>')
                 .replace(/\n/g, '<br>');
         }
 
@@ -643,12 +677,12 @@
             panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
         }
 
-        function appendMessage(sender, text) {
+        function appendMessage(sender, text, isAlreadyHTML = false) {
             const box = document.getElementById('chatMessages');
             const bubble = document.createElement('div');
             bubble.className = 'chat-bubble ' + sender;
             if (sender === 'ai') {
-                bubble.innerHTML = md(text);
+                bubble.innerHTML = isAlreadyHTML ? text : md(text);
             } else {
                 bubble.textContent = text;
             }
@@ -690,9 +724,12 @@
                 const loader = document.getElementById(loadId);
                 if (loader) loader.remove();
                 if (data.executed_command) {
-                    appendMessage('ai', `<b>Executed command:</b> <code>${escapeHTML(data.executed_command)}</code>\n\n${md(data.reply)}`);
+                    const cmdBox = `<div style="background:rgba(15,23,42,0.85);border:1px solid #334155;border-radius:6px;padding:8px 10px;margin-bottom:12px;font-family:monospace;font-size:12px;color:#38bdf8;">` +
+                                   `<b style="color:#f8fafc;">🛠️ Executed command:</b><br>$ ${escapeHTML(data.executed_command)}</div>` +
+                                   md(data.reply);
+                    appendMessage('ai', cmdBox, true);
                 } else {
-                    appendMessage('ai', data.reply);
+                    appendMessage('ai', md(data.reply), true);
                 }
             })
             .catch(err => {
