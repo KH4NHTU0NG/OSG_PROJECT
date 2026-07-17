@@ -66,7 +66,7 @@ chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
 ## 5. Kịch Bản Demo (Action!)
 
 ### Bước 0: Dọn Dẹp / Reset Sạch Thư Mục Cũ (Clean Setup từ đầu)
-Nếu bạn muốn làm lại demo từ đầu hoặc xóa sạch cài đặt cũ trên máy chủ CentOS, chạy cụm lệnh sau với quyền root:
+Nếu bạn muốn làm lại demo từ đầu hoặc xóa sạch cài đặt cũ trên máy chủ CentOS, chạy cụm lệnh sau với quyền root (hoặc `sudo`):
 ```bash
 # 1. Dừng & xóa toàn bộ systemd timer/service giám sát cũ
 sudo systemctl stop ai-monitor@*.timer ai-monitor@*.service 2>/dev/null
@@ -79,13 +79,16 @@ sudo fuser -k 5000/tcp 2>/dev/null
 sudo pkill -9 -f app.py 2>/dev/null
 sudo pkill -9 -f stress 2>/dev/null
 
-# 3. Xóa trắng thư mục cũ và clone mới từ GitHub
+# 3. Sao lưu cấu hình .env (bảo toàn API Key), xóa thư mục cũ và clone mới từ GitHub
+sudo cp /opt/ai-service-monitor/backend/.env /tmp/backend_env.bak 2>/dev/null
 sudo rm -rf /opt/ai-service-monitor
 sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
+sudo chown -R $USER:$USER /opt/ai-service-monitor
 
-# 4. Cấp quyền và chạy lại Backend
-chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
-cd /opt/ai-service-monitor/backend && nohup python3 app.py > backend.log 2>&1 &
+# 4. Phục hồi cấu hình .env, cấp quyền và chạy Backend (dùng sudo -E để AI có quyền restart dịch vụ)
+cp /tmp/backend_env.bak /opt/ai-service-monitor/backend/.env 2>/dev/null || cp /opt/ai-service-monitor/backend/.env.example /opt/ai-service-monitor/backend/.env
+sudo chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
+cd /opt/ai-service-monitor/backend && sudo -E nohup python3 app.py > backend.log 2>&1 &
 ```
 
 ---

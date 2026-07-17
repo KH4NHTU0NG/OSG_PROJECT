@@ -12,7 +12,7 @@ Tài liệu này hướng dẫn chi tiết kịch bản trình diễn (Demo) tí
 ---
 
 ## 🧹 Bước 0: Chuẩn Bị & Làm Sạch Môi Trường (Clean Setup từ con số 0)
-Trước khi bắt đầu buổi trình diễn, chạy cụm lệnh dưới đây với quyền `root` để xóa trắng các cài đặt/tiến trình cũ, đảm bảo hệ thống hoàn toàn sạch sẽ để Demo từ đầu:
+Trước khi bắt đầu buổi trình diễn, chạy cụm lệnh dưới đây với quyền `root` (hoặc `sudo`) để xóa trắng các cài đặt/tiến trình cũ, bảo toàn API Key và khởi động lại môi trường sạch:
 
 ```bash
 # 1. Dừng & xóa toàn bộ systemd timer/service giám sát cũ
@@ -26,13 +26,16 @@ sudo fuser -k 5000/tcp 2>/dev/null
 sudo pkill -9 -f app.py 2>/dev/null
 sudo pkill -9 -f stress 2>/dev/null
 
-# 3. Xóa trắng thư mục dự án cũ và tải mới hoàn toàn từ GitHub
+# 3. Sao lưu cấu hình .env (bảo toàn API Key), xóa thư mục cũ và clone mới từ GitHub
+sudo cp /opt/ai-service-monitor/backend/.env /tmp/backend_env.bak 2>/dev/null
 sudo rm -rf /opt/ai-service-monitor
 sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
+sudo chown -R $USER:$USER /opt/ai-service-monitor
 
-# 4. Khởi động lại Backend sạch (chạy ngầm)
-chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
-cd /opt/ai-service-monitor/backend && nohup python3 app.py > backend.log 2>&1 &
+# 4. Phục hồi cấu hình .env, cấp quyền và chạy Backend (dùng sudo -E để AI có quyền restart dịch vụ)
+cp /tmp/backend_env.bak /opt/ai-service-monitor/backend/.env 2>/dev/null || cp /opt/ai-service-monitor/backend/.env.example /opt/ai-service-monitor/backend/.env
+sudo chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
+cd /opt/ai-service-monitor/backend && sudo -E nohup python3 app.py > backend.log 2>&1 &
 ```
 
 ---
