@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Service Monitor v4.5 (Enterprise SaaS Edition)</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>Automating Service Management with AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -12,352 +12,331 @@
             --bg-card: #ffffff;
             --text-main: #0f172a;
             --text-sub: #475569;
-            --text-muted: #94a3b8;
+            --text-muted: #64748b;
             --border: #e2e8f0;
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
             --success: #10b981;
-            --success-bg: #d1fae5;
+            --success-bg: #ecfdf5;
             --success-text: #065f46;
             --warning: #f59e0b;
             --danger: #ef4444;
-            --danger-bg: #fee2e2;
+            --danger-bg: #fef2f2;
             --danger-text: #991b1b;
-            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-            --radius: 14px;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+            --radius: 10px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-body);
             color: var(--text-main);
             min-height: 100vh;
             overflow-x: hidden;
-            padding-bottom: 90px;
+            padding-bottom: 80px;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* ── Header Navbar ───────────────────────────────────────────── */
-        .navbar {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(12px);
+        /* ── Header ──────────────────────────────────────────────────── */
+        .header {
+            background: #ffffff;
             border-bottom: 1px solid var(--border);
-            padding: 14px 40px;
+            padding: 16px 40px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: sticky; top: 0; z-index: 100;
-            box-shadow: var(--shadow-sm);
         }
-        .brand {
-            display: flex; align-items: center; gap: 12px;
+        .header-title {
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.3px;
         }
-        .brand-icon {
-            width: 38px; height: 38px; border-radius: 10px;
-            background: linear-gradient(135deg, #2563eb, #3b82f6);
-            display: flex; align-items: center; justify-content: center;
-            color: #fff; font-size: 20px; font-weight: 800;
-            box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+        .status-indicators {
+            display: flex; gap: 14px; align-items: center;
         }
-        .brand-text h1 {
-            font-size: 20px; font-weight: 800; color: var(--text-main);
-            letter-spacing: -0.5px;
-        }
-        .brand-text span {
-            font-size: 12px; font-weight: 600; color: var(--text-sub);
-        }
-        .nav-indicators { display: flex; gap: 12px; align-items: center; }
-        .pill {
+        .indicator {
             display: flex; align-items: center; gap: 8px;
-            font-size: 13px; font-weight: 600; color: var(--text-main);
-            background: #f1f5f9; padding: 6px 14px; border-radius: 20px;
-            border: 1px solid #cbd5e1;
-            transition: all 0.2s;
+            font-size: 13px; font-weight: 500; color: var(--text-sub);
+            background: #f8fafc; padding: 5px 12px; border-radius: 6px;
+            border: 1px solid var(--border);
         }
-        .pill .dot { width: 8px; height: 8px; border-radius: 50%; }
-        .dot.green { background: var(--success); box-shadow: 0 0 8px rgba(16, 185, 129, 0.6); }
-        .dot.red   { background: var(--danger); box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+        .indicator .dot { width: 7px; height: 7px; border-radius: 50%; }
+        .dot.green { background: var(--success); }
+        .dot.red   { background: var(--danger); }
 
-        /* ── Main Layout (2-Column Grid) ────────────────────────────── */
+        /* ── Main Layout ─────────────────────────────────────────────── */
         .container {
-            max-width: 1360px; margin: 28px auto; padding: 0 40px;
+            max-width: 1320px; margin: 28px auto; padding: 0 40px;
         }
 
-        /* Hero KPI Bar */
-        .kpi-grid {
+        /* Metrics Bar */
+        .metrics-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 18px; margin-bottom: 28px;
+            gap: 16px; margin-bottom: 24px;
         }
-        .kpi-card {
+        .metric-card {
             background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius); padding: 18px 22px;
+            border-radius: var(--radius); padding: 18px 20px;
             box-shadow: var(--shadow-sm);
-            display: flex; flex-direction: column; justify-content: space-between;
-            transition: transform 0.2s, box-shadow 0.2s;
         }
-        .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-        .kpi-header { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; color: var(--text-sub); }
-        .kpi-value { font-size: 26px; font-weight: 800; color: var(--text-main); margin: 8px 0 6px; letter-spacing: -0.5px; }
-        .kpi-bar-bg { width: 100%; height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
-        .kpi-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+        .metric-header {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 13px; font-weight: 600; color: var(--text-sub);
+        }
+        .metric-value {
+            font-size: 24px; font-weight: 700; color: var(--text-main);
+            margin: 10px 0 8px; letter-spacing: -0.5px;
+        }
+        .progress-bg {
+            width: 100%; height: 5px; background: #f1f5f9; border-radius: 3px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 3px; transition: width 0.4s ease;
+        }
 
         /* Split Workspace */
         .workspace {
             display: grid;
-            grid-template-columns: 2.1fr 1fr;
-            gap: 24px;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
             align-items: start;
         }
 
         .card {
             background: var(--bg-card); border: 1px solid var(--border);
-            border-radius: var(--radius); padding: 24px;
-            box-shadow: var(--shadow-sm); margin-bottom: 24px;
+            border-radius: var(--radius); padding: 22px;
+            box-shadow: var(--shadow-sm); margin-bottom: 20px;
         }
-        .card-title {
-            font-size: 16px; font-weight: 700; color: var(--text-main);
-            margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between;
+        .card-header {
+            font-size: 15px; font-weight: 600; color: var(--text-main);
+            margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;
         }
 
         /* Chart Area */
-        .chart-container { height: 300px; width: 100%; }
+        .chart-wrapper { height: 260px; width: 100%; }
 
-        /* Service Cards List */
-        .service-list { display: flex; flex-direction: column; gap: 12px; }
+        /* Services Table/List */
+        .service-list { display: flex; flex-direction: column; gap: 10px; }
         .service-item {
             background: #f8fafc; border: 1px solid var(--border);
-            border-radius: 12px; padding: 16px;
+            border-radius: 8px; padding: 14px 16px;
             display: flex; justify-content: space-between; align-items: center;
-            transition: all 0.2s;
         }
-        .service-item:hover { border-color: #94a3b8; background: #ffffff; box-shadow: var(--shadow-sm); }
-        .service-info .name { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: var(--text-main); }
-        .service-info .time { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-        .service-badge {
-            padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.5px;
+        .service-name {
+            font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; color: var(--text-main);
         }
-        .badge-healthy   { background: var(--success-bg); color: var(--success-text); border: 1px solid #6ee7b7; }
-        .badge-crashed   { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #fca5a5; animation: pulse-red 1.5s infinite; }
-        .badge-recovered { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
-        .badge-waiting   { background: #f1f5f9; color: var(--text-muted); border: 1px solid #cbd5e1; }
+        .service-time { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .badge {
+            padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;
+        }
+        .badge-healthy   { background: var(--success-bg); color: var(--success-text); border: 1px solid #a7f3d0; }
+        .badge-crashed   { background: var(--danger-bg); color: var(--danger-text); border: 1px solid #fecaca; }
+        .badge-recovered { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+        .badge-waiting   { background: #f8fafc; color: var(--text-muted); border: 1px solid var(--border); }
 
-        @keyframes pulse-red {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-            50%      { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-        }
-
-        /* Quick Controls Sidebar */
-        .quick-action-btn {
-            width: 100%; padding: 12px 16px; border-radius: 10px;
+        /* Quick Diagnostic Actions */
+        .btn-quick {
+            width: 100%; padding: 11px 14px; border-radius: 6px;
             background: #ffffff; border: 1px solid var(--border);
-            color: var(--text-main); font-weight: 600; font-size: 13px;
-            display: flex; align-items: center; gap: 10px; cursor: pointer;
-            transition: all 0.2s; margin-bottom: 10px;
+            color: var(--text-main); font-weight: 500; font-size: 13px;
+            text-align: left; cursor: pointer; transition: all 0.15s;
+            margin-bottom: 8px;
         }
-        .quick-action-btn:hover { border-color: var(--primary); color: var(--primary); background: #eff6ff; }
+        .btn-quick:hover {
+            border-color: var(--primary); color: var(--primary); background: #f8fafc;
+        }
 
-        /* Incident Timeline Cards */
-        .incident-list { display: flex; flex-direction: column; gap: 16px; }
+        /* Incident Analysis Cards */
+        .incident-list { display: flex; flex-direction: column; gap: 14px; }
         .incident-card {
             background: #ffffff; border: 1px solid var(--border);
-            border-left: 5px solid var(--danger);
-            border-radius: 12px; padding: 20px;
-            box-shadow: var(--shadow-sm); transition: transform 0.2s;
+            border-left: 4px solid var(--danger);
+            border-radius: 8px; padding: 18px;
         }
-        .incident-card.done { border-left-color: var(--success); background: #fdfdfd; }
-        .incident-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .incident-tag { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-        .incident-time { font-size: 12px; color: var(--text-muted); font-weight: 500; }
-        .incident-body {
-            font-size: 14px; line-height: 1.6; color: var(--text-sub);
+        .incident-card.resolved { border-left-color: var(--success); }
+        .incident-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .incident-status { font-size: 13px; font-weight: 600; }
+        .incident-time { font-size: 12px; color: var(--text-muted); }
+        .incident-service {
+            display: inline-block; background: #f1f5f9; padding: 2px 8px;
+            border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+            font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 12px;
+        }
+        .incident-analysis {
+            font-size: 13.5px; line-height: 1.6; color: var(--text-sub);
             background: #f8fafc; border: 1px solid var(--border);
-            padding: 16px; border-radius: 10px; margin: 12px 0;
+            padding: 14px; border-radius: 6px; margin-bottom: 14px;
         }
-        .incident-body h2, .incident-body h3 { font-size: 15px; font-weight: 700; color: var(--text-main); margin: 8px 0 4px; }
-        .incident-body code { background: #e2e8f0; color: var(--primary); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; }
-        .incident-body pre { background: #0f172a; color: #f8fafc; padding: 12px; border-radius: 8px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 13px; margin: 8px 0; }
-        .incident-body pre code { background: transparent; color: inherit; padding: 0; }
+        .incident-analysis h2, .incident-analysis h3 { font-size: 14px; font-weight: 600; color: var(--text-main); margin: 6px 0 4px; }
+        .incident-analysis code { background: #e2e8f0; color: var(--text-main); padding: 1px 5px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+        .incident-analysis pre { background: #0f172a; color: #f8fafc; padding: 10px; border-radius: 6px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; margin: 6px 0; }
 
-        .btn-remediate {
-            background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff;
-            border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 13px;
-            cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3); transition: all 0.2s;
+        .btn-execute {
+            background: var(--primary); color: #ffffff;
+            border: none; padding: 9px 16px; border-radius: 6px; font-weight: 600; font-size: 13px;
+            cursor: pointer; transition: background 0.15s;
         }
-        .btn-remediate:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -1px rgba(37, 99, 235, 0.4); }
+        .btn-execute:hover { background: var(--primary-hover); }
 
-        /* ── Cyberpunk/macOS Terminal Modal ──────────────────────────── */
+        /* ── Terminal Modal ──────────────────────────────────────────── */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.75); z-index: 1000; display: none;
-            justify-content: center; align-items: center; backdrop-filter: blur(4px);
+            background: rgba(15, 23, 42, 0.6); z-index: 1000; display: none;
+            justify-content: center; align-items: center; backdrop-filter: blur(2px);
         }
         .terminal-box {
-            background: #0f172a; border: 1px solid #334155; border-radius: 12px;
-            width: 82%; max-width: 850px; max-height: 80vh; display: flex; flex-direction: column;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6); overflow: hidden;
+            background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+            width: 80%; max-width: 800px; max-height: 75vh; display: flex; flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
         }
-        .term-topbar {
-            background: #1e293b; padding: 12px 18px; border-bottom: 1px solid #334155;
+        .term-header {
+            background: #1e293b; padding: 10px 16px; border-bottom: 1px solid #334155;
             display: flex; justify-content: space-between; align-items: center;
         }
-        .traffic-lights { display: flex; gap: 8px; }
-        .traffic-lights span { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-        .tl-red { background: #ff5f56; } .tl-yellow { background: #ffbd2e; } .tl-green { background: #27c93f; }
-        .term-title { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #94a3b8; font-weight: 600; }
-        .term-close { background: transparent; color: #94a3b8; border: none; font-size: 18px; cursor: pointer; }
-        .term-close:hover { color: #fff; }
-        .term-content {
-            padding: 20px; font-family: 'JetBrains Mono', monospace; font-size: 13px;
-            color: #10b981; overflow-y: auto; white-space: pre-wrap; line-height: 1.6;
-            flex-grow: 1; max-height: 62vh;
+        .term-title { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #cbd5e1; }
+        .term-close { background: none; color: #94a3b8; border: none; font-size: 16px; cursor: pointer; }
+        .term-body {
+            padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px;
+            color: #10b981; overflow-y: auto; white-space: pre-wrap; line-height: 1.5;
+            flex-grow: 1; max-height: 60vh;
         }
-        .term-cmd { color: #38bdf8; margin-bottom: 12px; border-bottom: 1px dashed #334155; padding-bottom: 8px; font-weight: 600; }
+        .term-cmd { color: #38bdf8; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; font-weight: 500; }
 
-        /* ── Floating AI Copilot Chatbox ─────────────────────────────── */
-        .chat-toggle-btn {
-            position: fixed; bottom: 28px; right: 28px; z-index: 900;
-            background: linear-gradient(135deg, #2563eb, #3b82f6); color: #ffffff;
-            width: 60px; height: 60px; border-radius: 50%; border: none;
-            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.4); cursor: pointer;
-            display: flex; justify-content: center; align-items: center; font-size: 26px;
-            transition: transform 0.2s, box-shadow 0.2s;
+        /* ── Floating Chat Assistant ─────────────────────────────────── */
+        .chat-btn {
+            position: fixed; bottom: 24px; right: 24px; z-index: 900;
+            background: var(--primary); color: #ffffff;
+            padding: 12px 20px; border-radius: 30px; border: none;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); cursor: pointer;
+            font-weight: 600; font-size: 14px; transition: background 0.15s;
         }
-        .chat-toggle-btn:hover { transform: scale(1.08); box-shadow: 0 15px 25px rgba(37, 99, 235, 0.5); }
+        .chat-btn:hover { background: var(--primary-hover); }
 
         .chat-window {
-            position: fixed; bottom: 100px; right: 28px; z-index: 900;
-            width: 440px; height: 580px; background: #ffffff;
-            border: 1px solid #cbd5e1; border-radius: 16px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); display: none; flex-direction: column;
+            position: fixed; bottom: 80px; right: 24px; z-index: 900;
+            width: 420px; height: 540px; background: #ffffff;
+            border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15); display: none; flex-direction: column;
             overflow: hidden;
         }
         .chat-topbar {
-            background: #0f172a; padding: 16px 20px;
+            background: #0f172a; padding: 14px 18px;
             display: flex; justify-content: space-between; align-items: center;
         }
-        .chat-topbar h3 { color: #fff; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-        .chat-topbar .ai-pill { font-size: 11px; background: #10b981; color: #fff; padding: 2px 8px; border-radius: 12px; font-weight: 700; }
-        .chat-topbar button { background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; }
+        .chat-topbar h3 { color: #fff; font-size: 14px; font-weight: 600; }
+        .chat-topbar button { background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; }
         
-        .chat-body {
-            flex-grow: 1; padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+        .chat-messages {
+            flex-grow: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
             background: #f8fafc;
         }
         .chat-bubble {
-            max-width: 86%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5;
-            word-wrap: break-word; box-shadow: var(--shadow-sm);
+            max-width: 85%; padding: 10px 14px; border-radius: 8px; font-size: 13.5px; line-height: 1.5;
+            word-wrap: break-word;
         }
-        .chat-bubble.user { align-self: flex-end; background: #2563eb; color: #ffffff; font-weight: 500; border-bottom-right-radius: 4px; }
-        .chat-bubble.ai { align-self: flex-start; background: #ffffff; color: var(--text-main); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
-        .chat-bubble.ai code { background: #f1f5f9; color: var(--primary); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
-        .chat-bubble.ai pre { background: #0f172a; padding: 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #38bdf8; }
+        .chat-bubble.user { align-self: flex-end; background: var(--primary); color: #ffffff; }
+        .chat-bubble.ai { align-self: flex-start; background: #ffffff; color: var(--text-main); border: 1px solid var(--border); }
+        .chat-bubble.ai code { background: #f1f5f9; color: var(--primary); padding: 1px 5px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+        .chat-bubble.ai pre { background: #0f172a; padding: 10px; border-radius: 6px; overflow-x: auto; margin: 6px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #38bdf8; }
 
         .chat-quick-bar {
-            padding: 10px 16px; display: flex; gap: 8px; overflow-x: auto; background: #f1f5f9;
+            padding: 8px 14px; display: flex; gap: 6px; overflow-x: auto; background: #f1f5f9;
             border-top: 1px solid var(--border);
         }
         .quick-chip {
-            background: #ffffff; border: 1px solid #cbd5e1; color: var(--primary);
-            padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
-            transition: all 0.2s;
+            background: #ffffff; border: 1px solid var(--border); color: var(--text-sub);
+            padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap;
         }
-        .quick-chip:hover { background: var(--primary); color: #ffffff; border-color: var(--primary); }
+        .quick-chip:hover { border-color: var(--primary); color: var(--primary); }
 
         .chat-input-box {
-            padding: 14px; background: #ffffff; border-top: 1px solid var(--border);
-            display: flex; gap: 10px;
+            padding: 12px; background: #ffffff; border-top: 1px solid var(--border);
+            display: flex; gap: 8px;
         }
         .chat-input-box input {
-            flex-grow: 1; background: #f8fafc; border: 1px solid #cbd5e1;
-            border-radius: 8px; padding: 10px 14px; color: var(--text-main); font-size: 14px; outline: none;
+            flex-grow: 1; background: #f8fafc; border: 1px solid var(--border);
+            border-radius: 6px; padding: 8px 12px; color: var(--text-main); font-size: 13.5px; outline: none;
         }
         .chat-input-box input:focus { border-color: var(--primary); background: #ffffff; }
         .chat-input-box button {
-            background: var(--primary); color: #ffffff; border: none; padding: 0 18px; border-radius: 8px;
-            font-weight: 700; cursor: pointer; transition: background 0.2s;
+            background: var(--primary); color: #ffffff; border: none; padding: 0 16px; border-radius: 6px;
+            font-weight: 600; font-size: 13px; cursor: pointer;
         }
         .chat-input-box button:hover { background: var(--primary-hover); }
 
         @media (max-width: 1024px) {
             .workspace { grid-template-columns: 1fr; }
-            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 640px) {
-            .kpi-grid { grid-template-columns: 1fr; }
-            .navbar { padding: 12px 20px; flex-direction: column; gap: 10px; align-items: flex-start; }
+            .metrics-grid { grid-template-columns: 1fr; }
+            .header { padding: 14px 20px; flex-direction: column; gap: 10px; align-items: flex-start; }
             .container { padding: 0 20px; }
-            .chat-window { width: 92vw; right: 4vw; bottom: 92px; }
+            .chat-window { width: 92vw; right: 4vw; bottom: 80px; }
         }
     </style>
 </head>
 <body>
-    <!-- Top Navigation Header -->
-    <header class="navbar">
-        <div class="brand">
-            <div class="brand-icon">⚡</div>
-            <div class="brand-text">
-                <h1>AI Service Monitor <span style="font-size: 13px; background:#2563eb; color:#fff; padding:3px 8px; border-radius:6px; margin-left:6px;">v4.5 Enterprise</span></h1>
-                <span>Autonomous AIOps SOC & Real-time Telemetry Platform</span>
-            </div>
-        </div>
-        <div class="nav-indicators">
-            <div class="pill"><span class="dot" id="aiDot"></span><span id="aiLabel">Groq AI</span></div>
-            <div class="pill"><span class="dot" id="emailDot"></span><span id="emailLabel">Email SMTP</span></div>
-            <div class="pill"><span class="dot green"></span><span>Real-time Stream</span></div>
+    <!-- Top Navigation -->
+    <header class="header">
+        <div class="header-title">Automating Service Management with AI</div>
+        <div class="status-indicators">
+            <div class="indicator"><span class="dot" id="aiDot"></span><span id="aiLabel">AI Connected</span></div>
+            <div class="indicator"><span class="dot" id="emailDot"></span><span id="emailLabel">SMTP Active</span></div>
+            <div class="indicator"><span class="dot green"></span><span>System Online</span></div>
         </div>
     </header>
 
-    <!-- Main Workspace Container -->
+    <!-- Main Workspace -->
     <div class="container">
-        <!-- 4 Hero KPI Overview Cards -->
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-header"><span>🖥️ CPU LOAD</span><span id="cpuStatus" style="color:var(--success);">Normal</span></div>
-                <div class="kpi-value" id="cpuVal">0%</div>
-                <div class="kpi-bar-bg"><div class="kpi-bar-fill" id="cpuBar" style="width:0%; background:var(--success);"></div></div>
+        <!-- Key Metrics -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-header"><span>CPU Load</span><span id="cpuStatus">Normal</span></div>
+                <div class="metric-value" id="cpuVal">0%</div>
+                <div class="progress-bg"><div class="progress-fill" id="cpuBar" style="width:0%; background:var(--success);"></div></div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-header"><span>🧠 MEMORY USAGE</span><span id="memStatus" style="color:var(--success);">Normal</span></div>
-                <div class="kpi-value" id="memVal">0%</div>
-                <div class="kpi-bar-bg"><div class="kpi-bar-fill" id="memBar" style="width:0%; background:#0d9488;"></div></div>
+            <div class="metric-card">
+                <div class="metric-header"><span>Memory Usage</span><span id="memStatus">Normal</span></div>
+                <div class="metric-value" id="memVal">0%</div>
+                <div class="progress-bg"><div class="progress-fill" id="memBar" style="width:0%; background:#0d9488;"></div></div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-header"><span>💾 DISK CAPACITY</span><span id="diskStatus" style="color:var(--success);">Normal</span></div>
-                <div class="kpi-value" id="diskVal">0%</div>
-                <div class="kpi-bar-bg"><div class="kpi-bar-fill" id="diskBar" style="width:0%; background:var(--primary);"></div></div>
+            <div class="metric-card">
+                <div class="metric-header"><span>Disk Storage</span><span id="diskStatus">Normal</span></div>
+                <div class="metric-value" id="diskVal">0%</div>
+                <div class="progress-bg"><div class="progress-fill" id="diskBar" style="width:0%; background:var(--primary);"></div></div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-header"><span>🛡️ MONITORED SERVICES</span><span style="color:var(--primary);">Systemd</span></div>
-                <div class="kpi-value" id="svcCount">3 / 3</div>
-                <div style="font-size:12px; color:var(--text-muted); font-weight:600;" id="svcSummary">All daemons running</div>
+            <div class="metric-card">
+                <div class="metric-header"><span>Monitored Daemons</span><span style="color:var(--primary);">systemd</span></div>
+                <div class="metric-value" id="svcCount">3 / 3</div>
+                <div style="font-size:12px; color:var(--text-muted); font-weight:500;" id="svcSummary">All services online</div>
             </div>
         </div>
 
-        <!-- 2-Column Split Workspace -->
+        <!-- Split Workspace -->
         <div class="workspace">
             <!-- Left Column: Chart & Incidents -->
             <div class="left-col">
-                <!-- Live Chart Card -->
+                <!-- Chart Card -->
                 <div class="card">
-                    <div class="card-title">
-                        <span>📈 Real-time Telemetry Waveform (CPU vs RAM)</span>
-                        <span style="font-size:12px; font-weight:600; color:var(--text-muted);">Sampling rate: 1000ms</span>
+                    <div class="card-header">
+                        <span>System Telemetry (CPU & Memory)</span>
+                        <span style="font-size:12px; font-weight:400; color:var(--text-muted);">Real-time sampling</span>
                     </div>
-                    <div class="chart-container">
+                    <div class="chart-wrapper">
                         <canvas id="telemetryChart"></canvas>
                     </div>
                 </div>
 
-                <!-- AI Incident Log Card -->
+                <!-- Incident Log Card -->
                 <div class="card" style="margin-bottom:0;">
-                    <div class="card-title">
-                        <span>🔥 AI Incident Analysis & Remediation Log</span>
-                        <span style="font-size:12px; background:#f1f5f9; padding:4px 10px; border-radius:6px; font-weight:600;">Zero Hallucination</span>
+                    <div class="card-header">
+                        <span>Incident Analysis & Remediation Log</span>
                     </div>
                     <div id="incidentBox" class="incident-list">
                         <!-- Dynamic content -->
@@ -369,66 +348,65 @@
             <div class="right-col">
                 <!-- Services Card -->
                 <div class="card">
-                    <div class="card-title"><span>⚙️ Core Daemons</span><span>Status</span></div>
+                    <div class="card-header"><span>Monitored Services</span><span>Status</span></div>
                     <div id="serviceList" class="service-list">
                         <!-- Dynamic content -->
                     </div>
                 </div>
 
-                <!-- Quick Action Controls Card -->
+                <!-- Quick Action Controls -->
                 <div class="card" style="margin-bottom:0;">
-                    <div class="card-title"><span>⚡ Quick AIOps Actions</span></div>
-                    <button class="quick-action-btn" onclick="runOneClick('top -bn1 | head -15')">
-                        <span>🖥️</span> <b>Chẩn đoán CPU/RAM (Top process)</b>
+                    <div class="card-header"><span>Quick Diagnostics</span></div>
+                    <button class="btn-quick" onclick="runOneClick('top -bn1 | head -15')">
+                        Check CPU & Memory Processes
                     </button>
-                    <button class="quick-action-btn" onclick="runOneClick('df -h / && du -sh /var/log/* /tmp/* 2>/dev/null | sort -rh | head -5')">
-                        <span>💾</span> <b>Kiểm tra dung lượng ổ đĩa (Disk scan)</b>
+                    <button class="btn-quick" onclick="runOneClick('df -h / && du -sh /var/log/* /tmp/* 2>/dev/null | sort -rh | head -5')">
+                        Check Disk Storage Usage
                     </button>
-                    <button class="quick-action-btn" onclick="runOneClick('systemctl status httpd sshd crond --no-pager')">
-                        <span>🔄</span> <b>Kiểm tra trạng thái 3 Service chính</b>
+                    <button class="btn-quick" onclick="runOneClick('systemctl status httpd sshd crond --no-pager')">
+                        Check Core Daemons Status
                     </button>
-                    <button class="quick-action-btn" style="border-color:var(--danger); color:var(--danger); margin-bottom:0;" onclick="runOneClick('journalctl -n 20 --no-pager --priority=err')">
-                        <span>🚨</span> <b>Xem log lỗi hệ thống (Journalctl errors)</b>
+                    <button class="btn-quick" style="color:var(--danger); margin-bottom:0;" onclick="runOneClick('journalctl -n 20 --no-pager --priority=err')">
+                        Check System Error Logs
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Cyberpunk/macOS Terminal Modal -->
+    <!-- Terminal Modal -->
     <div class="modal-overlay" id="termModal">
         <div class="terminal-box">
-            <div class="term-topbar">
-                <div class="traffic-lights"><span class="tl-red"></span><span class="tl-yellow"></span><span class="tl-green"></span></div>
-                <div class="term-title">⚡ CentOS 10 SOC Command Execution</div>
+            <div class="term-header">
+                <div class="term-title">Diagnostic Execution Output</div>
                 <button class="term-close" onclick="closeTerminal()">✕</button>
             </div>
-            <div class="term-content" id="termOutput">⏳ Đang thực thi lệnh trên máy chủ...</div>
+            <div class="term-body" id="termOutput">Executing command on CentOS server...</div>
         </div>
     </div>
 
-    <!-- Floating AI DevOps Copilot Chatbox -->
-    <button class="chat-toggle-btn" onclick="toggleChat()" title="Mở AI DevOps Copilot 24/7">🤖</button>
+    <!-- Floating Chat Assistant -->
+    <button class="chat-btn" onclick="toggleChat()">AI Assistant</button>
     
     <div class="chat-window" id="chatPanel">
         <div class="chat-topbar">
-            <h3>🤖 AI DevOps Assistant <span class="ai-pill">Llama 3.1</span></h3>
+            <h3>System Management Copilot</h3>
             <button onclick="toggleChat()">✕</button>
         </div>
-        <div class="chat-body" id="chatMessages">
+        <div class="chat-messages" id="chatMessages">
             <div class="chat-bubble ai">
-                👋 Chào Quản trị viên! Tôi là Trợ lý AI SOC chạy trực tiếp trên máy chủ CentOS 10.<br><br>
-                💡 Bạn có thể ra lệnh cho tôi kiểm tra ổ cứng, tìm file lớn, quản lý tiến trình hay giải đáp sự cố ngay lập tức!
+                Xin chào Quản trị viên. Tôi là trợ lý quản trị hệ thống chạy trực tiếp trên máy chủ CentOS 10.<br><br>
+                Bạn có thể ra lệnh bằng tiếng Việt hoặc đặt câu hỏi để kiểm tra trạng thái máy chủ.
             </div>
         </div>
         <div class="chat-quick-bar">
-            <button class="quick-chip" onclick="sendQuick('⚡ Hãy khởi động lại dịch vụ crond và kiểm tra trạng thái mới nhất giúp tôi')">⚡ Khởi động lại CROND</button>
-            <button class="quick-chip" onclick="sendQuick('💾 Khảo sát ổ đĩa / và tìm 5 thư mục nặng nhất')">💾 Kiểm tra Disk</button>
-            <button class="quick-chip" onclick="sendQuick('🧠 Top 5 tiến trình đang ăn RAM nhất')">🧠 Top RAM</button>
-            <button class="quick-chip" onclick="sendQuick('🔄 Kiểm tra trạng thái dịch vụ httpd')">🔄 Status HTTPD</button>
+            <button class="quick-chip" onclick="sendQuick('Khởi động lại dịch vụ crond và kiểm tra trạng thái mới nhất')">Khởi động lại crond</button>
+            <button class="quick-chip" onclick="sendQuick('Khảo sát ổ đĩa / và tìm 5 thư mục nặng nhất')">Kiểm tra Disk</button>
+            <button class="quick-chip" onclick="sendQuick('Top 5 tiến trình đang ăn RAM nhất')">Top RAM</button>
+            <button class="quick-chip" onclick="sendQuick('Kiểm tra trạng thái dịch vụ httpd')">Status httpd</button>
         </div>
         <div class="chat-input-box">
-            <input type="text" id="chatInput" placeholder="Hỏi AI hoặc ra lệnh kiểm tra Linux..." onkeypress="if(event.key==='Enter') sendChat()">
+            <input type="text" id="chatInput" placeholder="Nhập câu hỏi hoặc lệnh kiểm tra..." onkeydown="if(event.key==='Enter'){ sendChat(); event.preventDefault(); }">
             <button onclick="sendChat()">Gửi</button>
         </div>
     </div>
@@ -448,10 +426,12 @@
                 .replace(/\n/g, '<br>');
         }
 
-        const badgeText = {recovered:'⚡ RECOVERED', healthy:'✅ HEALTHY', crashed:'🔴 CRASHED'};
+        const badgeText = {recovered:'Recovered', healthy:'Healthy', crashed:'Crashed'};
         let prevIncJson = '';
+        let prevServicesJson = '';
+        let prevCpu = -1, prevMem = -1, prevDisk = -1;
 
-        // Chart.js Setup
+        // Chart Setup
         const ctx = document.getElementById('telemetryChart').getContext('2d');
         const labels = Array(15).fill('');
         const cpuData = Array(15).fill(0);
@@ -466,26 +446,26 @@
                         label: 'CPU Load (%)',
                         data: cpuData,
                         borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                        borderWidth: 2.5, tension: 0.4, fill: true, pointRadius: 3
+                        backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                        borderWidth: 2, tension: 0.3, fill: true, pointRadius: 2.5
                     },
                     {
                         label: 'Memory Usage (%)',
                         data: memData,
                         borderColor: '#0d9488',
-                        backgroundColor: 'rgba(13, 148, 136, 0.05)',
-                        borderWidth: 2.5, tension: 0.4, fill: true, pointRadius: 3
+                        backgroundColor: 'rgba(13, 148, 136, 0.04)',
+                        borderWidth: 2, tension: 0.3, fill: true, pointRadius: 2.5
                     }
                 ]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                animation: { duration: 300 },
+                animation: { duration: 0 }, // Tắt animation lặp để không gián đoạn focus/gõ chữ
                 scales: {
-                    y: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { weight: 600 } } },
+                    y: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b' } },
                     x: { grid: { display: false } }
                 },
-                plugins: { legend: { labels: { color: '#0f172a', font: { size: 13, weight: 600 } } } }
+                plugins: { legend: { labels: { color: '#0f172a', font: { size: 12, weight: 500 } } } }
             }
         });
 
@@ -498,72 +478,76 @@
         }
 
         function getLevelColor(pct, th) { return pct >= th ? '#ef4444' : (pct >= th*0.7 ? '#f59e0b' : '#10b981'); }
-        function getLevelText(pct, th) { return pct >= th ? '⚠️ Alert (>'+th+'%)' : (pct >= th*0.7 ? 'Warning' : 'Normal'); }
+        function getLevelText(pct, th) { return pct >= th ? 'Alert' : (pct >= th*0.7 ? 'Warning' : 'Normal'); }
 
+        // Main State Polling Loop without DOM Thrashing
         function updateUI() {
             fetch('/api/status')
                 .then(r => r.json())
                 .then(data => {
-                    // Indicators
                     document.getElementById('aiDot').className = 'dot ' + (data.ai_connected ? 'green' : 'red');
-                    document.getElementById('aiLabel').textContent = data.ai_connected ? 'Groq AI ✓' : 'Groq AI ✗';
+                    document.getElementById('aiLabel').textContent = data.ai_connected ? 'AI Connected' : 'AI Offline';
                     document.getElementById('emailDot').className = 'dot ' + (data.email_configured ? 'green' : 'red');
-                    document.getElementById('emailLabel').textContent = data.email_configured ? 'Email SMTP ✓' : 'Email SMTP ✗';
+                    document.getElementById('emailLabel').textContent = data.email_configured ? 'SMTP Active' : 'SMTP Offline';
 
-                    // KPI & Resources
                     if (data.resources) {
                         const { cpu, mem, disk } = data.resources;
-                        document.getElementById('cpuVal').textContent = cpu + '%';
-                        document.getElementById('cpuBar').style.width = Math.min(cpu, 100) + '%';
-                        document.getElementById('cpuBar').style.background = getLevelColor(cpu, 90);
-                        document.getElementById('cpuStatus').textContent = getLevelText(cpu, 90);
-                        document.getElementById('cpuStatus').style.color = getLevelColor(cpu, 90);
+                        if (cpu !== prevCpu || mem !== prevMem || disk !== prevDisk) {
+                            prevCpu = cpu; prevMem = mem; prevDisk = disk;
+                            document.getElementById('cpuVal').textContent = cpu + '%';
+                            document.getElementById('cpuBar').style.width = Math.min(cpu, 100) + '%';
+                            document.getElementById('cpuBar').style.background = getLevelColor(cpu, 90);
+                            document.getElementById('cpuStatus').textContent = getLevelText(cpu, 90);
+                            document.getElementById('cpuStatus').style.color = getLevelColor(cpu, 90);
 
-                        document.getElementById('memVal').textContent = mem + '%';
-                        document.getElementById('memBar').style.width = Math.min(mem, 100) + '%';
-                        document.getElementById('memBar').style.background = getLevelColor(mem, 85);
-                        document.getElementById('memStatus').textContent = getLevelText(mem, 85);
-                        document.getElementById('memStatus').style.color = getLevelColor(mem, 85);
+                            document.getElementById('memVal').textContent = mem + '%';
+                            document.getElementById('memBar').style.width = Math.min(mem, 100) + '%';
+                            document.getElementById('memBar').style.background = getLevelColor(mem, 85);
+                            document.getElementById('memStatus').textContent = getLevelText(mem, 85);
+                            document.getElementById('memStatus').style.color = getLevelColor(mem, 85);
 
-                        document.getElementById('diskVal').textContent = disk + '%';
-                        document.getElementById('diskBar').style.width = Math.min(disk, 100) + '%';
-                        document.getElementById('diskBar').style.background = getLevelColor(disk, 90);
-                        document.getElementById('diskStatus').textContent = getLevelText(disk, 90);
-                        document.getElementById('diskStatus').style.color = getLevelColor(disk, 90);
+                            document.getElementById('diskVal').textContent = disk + '%';
+                            document.getElementById('diskBar').style.width = Math.min(disk, 100) + '%';
+                            document.getElementById('diskBar').style.background = getLevelColor(disk, 90);
+                            document.getElementById('diskStatus').textContent = getLevelText(disk, 90);
+                            document.getElementById('diskStatus').style.color = getLevelColor(disk, 90);
 
-                        updateChart(cpu, mem);
+                            updateChart(cpu, mem);
+                        }
                     }
 
-                    // Monitored Services List
-                    const listEl = document.getElementById('serviceList');
                     const services = Object.values(data.services);
-                    
-                    let onlineCount = 0;
-                    services.forEach(s => { if (s.status === 'healthy' || s.status === 'recovered') onlineCount++; });
-                    document.getElementById('svcCount').textContent = `${onlineCount} / ${services.length}`;
-                    document.getElementById('svcSummary').textContent = (onlineCount === services.length) ? 'All daemons running' : 'Service attention required';
+                    const servicesJson = JSON.stringify(services);
+                    if (servicesJson !== prevServicesJson) {
+                        prevServicesJson = servicesJson;
+                        const listEl = document.getElementById('serviceList');
+                        
+                        let onlineCount = 0;
+                        services.forEach(s => { if (s.status === 'healthy' || s.status === 'recovered') onlineCount++; });
+                        document.getElementById('svcCount').textContent = `${onlineCount} / ${services.length}`;
+                        document.getElementById('svcSummary').textContent = (onlineCount === services.length) ? 'All services online' : 'Attention required';
 
-                    if (services.length === 0) {
-                        listEl.innerHTML = `<div style="text-align:center; padding:24px; color:#64748b; font-size:13px;">Đang khởi tạo Auto-Tracking...</div>`;
-                    } else {
-                        listEl.innerHTML = services.map(s => `
-                            <div class="service-item">
-                                <div class="service-info">
-                                    <div class="name">${s.service_name}</div>
-                                    <div class="time">Checked: ${s.last_check}</div>
+                        if (services.length === 0) {
+                            listEl.innerHTML = `<div style="text-align:center; padding:20px; color:#64748b; font-size:13px;">Initializing telemetry...</div>`;
+                        } else {
+                            listEl.innerHTML = services.map(s => `
+                                <div class="service-item">
+                                    <div>
+                                        <div class="service-name">${s.service_name}</div>
+                                        <div class="service-time">Last check: ${s.last_check}</div>
+                                    </div>
+                                    <span class="badge badge-${s.status}">${badgeText[s.status] || 'Waiting'}</span>
                                 </div>
-                                <span class="service-badge badge-${s.status}">${badgeText[s.status] || '⏳ WAITING'}</span>
-                            </div>
-                        `).join('');
+                            `).join('');
+                        }
                     }
 
-                    // Incidents
                     const incJson = JSON.stringify(data.incidents);
                     if (incJson !== prevIncJson) {
                         prevIncJson = incJson;
                         const incBox = document.getElementById('incidentBox');
                         if (data.incidents.length === 0) {
-                            incBox.innerHTML = '<div style="text-align:center; padding:40px; color:#64748b; font-weight:600; border:1px dashed var(--border); border-radius:12px;">✅ Chưa có sự cố nào ghi nhận. Hệ thống đang hoạt động tối ưu.</div>';
+                            incBox.innerHTML = '<div style="text-align:center; padding:36px; color:#64748b; font-size:13px; border:1px dashed var(--border); border-radius:8px;">No active incidents reported. System operating within optimal thresholds.</div>';
                         } else {
                             incBox.innerHTML = data.incidents.map(inc => {
                                 let fixCmd = 'top -bn1 | head -15';
@@ -576,17 +560,17 @@
                                 }
 
                                 return `
-                                <div class="incident-card ${inc.ai_done ? 'done' : ''}">
-                                    <div class="incident-header">
-                                        <span class="incident-tag ${inc.ai_done ? 'healed' : 'crash'}">
-                                            <span>${inc.ai_done ? '✅ Auto-Healed / Analysis Ready' : '🔴 AI Processing...'}</span>
+                                <div class="incident-card ${inc.ai_done ? 'resolved' : ''}">
+                                    <div class="incident-top">
+                                        <span class="incident-status" style="color: ${inc.ai_done ? 'var(--success-text)' : 'var(--danger-text)'}">
+                                            ${inc.ai_done ? 'Resolved / Analysis Ready' : 'Processing Diagnostics...'}
                                         </span>
                                         <span class="incident-time">${inc.time}</span>
                                     </div>
                                     <div class="incident-service">${inc.service}</div>
-                                    <div class="incident-body">${md(inc.ai_analysis)}</div>
-                                    <button class="btn-remediate" onclick="runOneClick('${fixCmd.replace(/'/g, "\\'")}')">
-                                        ⚡ Chẩn đoán & Khắc phục nhanh trên Server (${fixCmd.split('&&')[0]})
+                                    <div class="incident-analysis">${md(inc.ai_analysis)}</div>
+                                    <button class="btn-execute" onclick="runOneClick('${fixCmd.replace(/'/g, "\\'")}')">
+                                        Execute Diagnostic Fix (${fixCmd.split('&&')[0]})
                                     </button>
                                 </div>`;
                             }).join('');
@@ -599,10 +583,9 @@
         setInterval(updateUI, 1000);
         updateUI();
 
-        // Terminal Modal
         function runOneClick(cmd) {
             document.getElementById('termModal').style.display = 'flex';
-            document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${cmd}</div>⏳ Đang thực thi trên máy chủ CentOS 10...`;
+            document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${cmd}</div>Executing on CentOS server...`;
             
             fetch('/api/execute_fix', {
                 method: 'POST',
@@ -614,12 +597,11 @@
                 document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${cmd}</div>${data.output}`;
             })
             .catch(err => {
-                document.getElementById('termOutput').innerHTML = `❌ Lỗi kết nối đến máy chủ: ${err}`;
+                document.getElementById('termOutput').innerHTML = `Connection error: ${err}`;
             });
         }
         function closeTerminal() { document.getElementById('termModal').style.display = 'none'; }
 
-        // Chat Box Controls
         function toggleChat() {
             const panel = document.getElementById('chatPanel');
             panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
@@ -635,7 +617,9 @@
         }
 
         function sendQuick(text) {
-            document.getElementById('chatInput').value = text;
+            const inp = document.getElementById('chatInput');
+            inp.value = text;
+            inp.focus();
             sendChat();
         }
 
@@ -652,7 +636,7 @@
             const loadBubble = document.createElement('div');
             loadBubble.className = 'chat-bubble ai';
             loadBubble.id = loadId;
-            loadBubble.innerHTML = '⏳ <i>AI đang suy nghĩ & thao tác trên máy chủ...</i>';
+            loadBubble.innerHTML = '<i>Processing request on server...</i>';
             box.appendChild(loadBubble);
             box.scrollTop = box.scrollHeight;
 
@@ -663,16 +647,18 @@
             })
             .then(r => r.json())
             .then(data => {
-                document.getElementById(loadId).remove();
+                const loader = document.getElementById(loadId);
+                if (loader) loader.remove();
                 if (data.executed_command) {
-                    appendMessage('ai', `🛠️ <b>Đã thực thi bash trên CentOS:</b> \`${data.executed_command}\`\n\n${data.reply}`);
+                    appendMessage('ai', `<b>Executed command:</b> <code>${data.executed_command}</code>\n\n${data.reply}`);
                 } else {
                     appendMessage('ai', data.reply);
                 }
             })
             .catch(err => {
-                document.getElementById(loadId).remove();
-                appendMessage('ai', `❌ Lỗi kết nối AI: ${err}`);
+                const loader = document.getElementById(loadId);
+                if (loader) loader.remove();
+                appendMessage('ai', `Connection error: ${err}`);
             });
         }
     </script>
