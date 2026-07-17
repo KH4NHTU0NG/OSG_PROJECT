@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Service Monitor Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>AI Service Monitor Dashboard v4.0</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Chart.js cho đồ thị sóng Real-time -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -13,6 +15,7 @@
             color: #e0e0e0;
             min-height: 100vh;
             overflow-y: auto;
+            padding-bottom: 100px;
         }
 
         /* Header */
@@ -23,6 +26,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky; top: 0; z-index: 100;
+            backdrop-filter: blur(10px);
         }
         .header h1 {
             font-size: 24px;
@@ -30,6 +35,7 @@
             background: linear-gradient(90deg, #00ffaa, #00ccff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            display: flex; align-items: center; gap: 10px;
         }
         .header .subtitle { color: #7a8ba6; font-size: 13px; margin-top: 2px; }
         .status-indicators { display: flex; gap: 15px; align-items: center; }
@@ -38,45 +44,39 @@
             font-size: 12px; color: #7a8ba6;
             background: rgba(255,255,255,0.04);
             padding: 6px 12px; border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.05);
         }
-        .indicator .dot {
-            width: 8px; height: 8px; border-radius: 50%;
-        }
+        .indicator .dot { width: 8px; height: 8px; border-radius: 50%; }
         .dot.green { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
         .dot.red   { background: #ff4466; box-shadow: 0 0 8px #ff4466; }
-        .dot.gray  { background: #555; }
 
         /* Main */
-        .main { padding: 25px 30px 80px; max-width: 1200px; margin: 0 auto; }
+        .main { padding: 25px 30px; max-width: 1250px; margin: 0 auto; }
 
-        /* Service Grid */
+        /* Section Titles */
         .section-title {
             font-size: 16px; font-weight: 700; color: #c0c8d8;
-            margin-bottom: 15px;
+            margin: 25px 0 15px;
             display: flex; align-items: center; gap: 8px;
         }
+
+        /* Service Grid */
         .service-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
             gap: 15px;
-            margin-bottom: 30px;
         }
         .service-card {
             background: linear-gradient(145deg, rgba(20,25,45,0.9), rgba(15,20,35,0.95));
             border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 12px;
-            padding: 18px;
+            border-radius: 12px; padding: 18px;
             transition: all 0.3s;
         }
         .service-card:hover { border-color: rgba(0,255,170,0.2); transform: translateY(-2px); }
-        .service-card .name {
-            font-size: 18px; font-weight: 700; color: #fff;
-            font-family: 'Courier New', monospace;
-        }
+        .service-card .name { font-size: 18px; font-weight: 700; color: #fff; font-family: 'Fira Code', monospace; }
         .service-card .time { font-size: 11px; color: #556; margin-top: 4px; }
         .service-card .badge {
-            display: inline-block; padding: 4px 14px;
-            border-radius: 20px; font-size: 12px; font-weight: 700;
+            display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;
             margin-top: 10px; text-transform: uppercase;
         }
         .badge.healthy   { background: rgba(0,255,136,0.12); color: #00ff88; border: 1px solid rgba(0,255,136,0.25); }
@@ -89,195 +89,249 @@
             50%      { box-shadow: 0 0 20px rgba(255,68,102,0.6); }
         }
 
-        /* Empty State */
-        .empty-state {
-            text-align: center; padding: 40px;
-            color: #556; font-size: 14px;
-            border: 2px dashed rgba(255,255,255,0.06);
-            border-radius: 12px;
-            margin-bottom: 30px;
+        /* ── Resource Monitor (Charts & Bars) ─────────────────── */
+        .resource-section {
+            display: grid; grid-template-columns: 2fr 1fr; gap: 20px;
         }
-        .empty-state code {
-            display: block; margin-top: 10px;
-            background: rgba(0,255,170,0.08); color: #00ffaa;
-            padding: 10px; border-radius: 8px; font-size: 13px;
+        .chart-card {
+            background: linear-gradient(145deg, rgba(20,25,45,0.9), rgba(15,20,35,0.95));
+            border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px;
+            height: 260px;
         }
-
-        /* ── Resource Monitor Section ─────────────────────────── */
-        .resource-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 30px;
+        .res-bars-col {
+            display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
         }
         .resource-card {
             background: linear-gradient(145deg, rgba(20,25,45,0.9), rgba(15,20,35,0.95));
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 12px;
-            padding: 18px;
+            border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 18px;
         }
-        .resource-card .res-label {
-            font-size: 13px; font-weight: 600; color: #7a8ba6;
-            margin-bottom: 10px;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .resource-card .res-value {
-            font-size: 28px; font-weight: 800; color: #fff;
-            margin-bottom: 10px;
-        }
-        .res-bar-bg {
-            width: 100%; height: 8px;
-            background: rgba(255,255,255,0.06);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .res-bar-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.6s ease, background 0.6s ease;
-        }
+        .resource-card .res-label { font-size: 13px; font-weight: 600; color: #7a8ba6; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .resource-card .res-value { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+        .res-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+        .res-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
         .res-bar-fill.level-ok   { background: linear-gradient(90deg, #00ff88, #00cc66); box-shadow: 0 0 8px rgba(0,255,136,0.3); }
-        .res-bar-fill.level-warn { background: linear-gradient(90deg, #ffaa00, #ff8800); box-shadow: 0 0 8px rgba(255,170,0,0.3); }
+        .res-bar-fill.level-warn { background: linear-gradient(90deg, #ffaa00, #ff8800); }
         .res-bar-fill.level-crit { background: linear-gradient(90deg, #ff4466, #ff2244); box-shadow: 0 0 12px rgba(255,68,102,0.5); animation: pulse-red 1.5s infinite; }
-        .res-threshold {
-            font-size: 10px; color: #556; margin-top: 6px;
-            display: flex; justify-content: space-between;
-        }
 
-        /* Incidents */
+        /* Incidents & One-Click Buttons */
         .incident-card {
             background: linear-gradient(145deg, rgba(25,15,20,0.9), rgba(20,12,18,0.95));
-            border: 1px solid rgba(255,68,102,0.15);
-            border-left: 3px solid #ff4466;
-            border-radius: 10px;
-            padding: 18px;
-            margin-bottom: 12px;
-            transition: all 0.3s;
+            border: 1px solid rgba(255,68,102,0.15); border-left: 3px solid #ff4466;
+            border-radius: 10px; padding: 18px; margin-bottom: 15px;
         }
         .incident-card.done {
-            border-left-color: #00ff88;
-            border-color: rgba(0,255,136,0.15);
+            border-left-color: #00ff88; border-color: rgba(0,255,136,0.15);
             background: linear-gradient(145deg, rgba(10,25,20,0.9), rgba(8,20,15,0.95));
         }
-        .incident-header {
-            display: flex; justify-content: space-between;
-            align-items: center; margin-bottom: 10px;
-        }
-        .incident-header .tag {
-            font-size: 13px; font-weight: 700;
-        }
-        .tag.crash { color: #ff4466; }
-        .tag.healed { color: #00ff88; }
-        .incident-header .time { font-size: 12px; color: #556; }
+        .incident-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .incident-header .tag { font-size: 13px; font-weight: 700; }
+        .tag.crash { color: #ff4466; } .tag.healed { color: #00ff88; }
         .incident-service {
-            display: inline-block;
-            background: rgba(255,255,255,0.06);
-            padding: 2px 10px; border-radius: 6px;
-            font-family: monospace; font-size: 13px; color: #aab;
-            margin-bottom: 8px;
+            display: inline-block; background: rgba(255,255,255,0.06);
+            padding: 3px 10px; border-radius: 6px; font-family: 'Fira Code', monospace; font-size: 13px; color: #00ffaa; margin-bottom: 10px;
         }
         .ai-content {
-            font-size: 13px; line-height: 1.7; color: #b0b8c8;
-            background: rgba(0,0,0,0.2);
-            padding: 12px; border-radius: 8px;
-            overflow-y: visible;
+            font-size: 13px; line-height: 1.7; color: #b0b8c8; background: rgba(0,0,0,0.25);
+            padding: 14px; border-radius: 8px; margin-bottom: 12px;
         }
-        .ai-content h2 { font-size: 15px; color: #fff; margin: 10px 0 5px; }
-        .ai-content h3 { font-size: 14px; color: #00ccff; margin: 8px 0 4px; }
-        .ai-content code {
-            background: rgba(0,255,170,0.08); color: #00ffaa;
-            padding: 1px 6px; border-radius: 4px; font-size: 12px;
+        .ai-content h2, .ai-content h3 { color: #fff; margin: 8px 0 4px; }
+        .ai-content code { background: rgba(0,255,170,0.1); color: #00ffaa; padding: 2px 6px; border-radius: 4px; font-family: 'Fira Code', monospace; }
+        .ai-content pre { background: #0a0e1a; padding: 10px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+        
+        /* One-Click Action Button */
+        .btn-oneclick {
+            background: linear-gradient(90deg, #00ffaa, #00bfff); color: #0a0e1a;
+            border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 13px;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        .ai-content pre {
-            background: #0a0e1a; padding: 10px; border-radius: 6px;
-            overflow-x: auto; margin: 8px 0;
-        }
-        .ai-content ul, .ai-content ol { padding-left: 20px; margin: 5px 0; }
-        .ai-content strong { color: #fff; }
+        .btn-oneclick:hover { transform: scale(1.02); box-shadow: 0 0 15px rgba(0,255,170,0.4); }
 
-        .loading-dots::after {
-            content: ''; animation: dots 1.5s steps(4,end) infinite;
+        /* ── Cyberpunk Terminal Modal ────────────────────────── */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 1000; display: none;
+            justify-content: center; align-items: center; backdrop-filter: blur(5px);
         }
-        @keyframes dots {
-            0%  { content: ''; }
-            25% { content: '.'; }
-            50% { content: '..'; }
-            75% { content: '...'; }
+        .terminal-modal {
+            background: #0a0e1a; border: 1px solid #00ffaa; border-radius: 10px;
+            width: 80%; max-width: 800px; max-height: 80vh; display: flex; flex-direction: column;
+            box-shadow: 0 0 30px rgba(0,255,170,0.2);
         }
+        .term-header {
+            background: #12182b; padding: 12px 18px; border-bottom: 1px solid rgba(0,255,170,0.2);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .term-title { font-family: 'Fira Code', monospace; font-size: 14px; color: #00ffaa; font-weight: 600; }
+        .term-close { background: #ff4466; color: #fff; border: none; width: 26px; height: 26px; border-radius: 4px; cursor: pointer; font-weight: 700; }
+        .term-body {
+            padding: 18px; font-family: 'Fira Code', monospace; font-size: 13px;
+            color: #00ffaa; overflow-y: auto; white-space: pre-wrap; line-height: 1.5;
+            flex-grow: 1; max-height: 60vh;
+        }
+        .term-cmd { color: #00ccff; margin-bottom: 12px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px; }
 
-        /* No incidents */
-        .no-incidents {
-            text-align: center; padding: 30px; color: #445;
-            font-size: 14px;
+        /* ── Floating AI Copilot Chat 24/7 ───────────────────── */
+        .floating-chat-btn {
+            position: fixed; bottom: 25px; right: 25px; z-index: 900;
+            background: linear-gradient(135deg, #00ffaa, #00bfff); color: #0a0e1a;
+            width: 60px; height: 60px; border-radius: 50%; border: none;
+            box-shadow: 0 0 20px rgba(0,255,170,0.5); cursor: pointer;
+            display: flex; justify-content: center; align-items: center; font-size: 28px;
+            transition: transform 0.3s;
         }
+        .floating-chat-btn:hover { transform: scale(1.1); }
+        
+        .chatbox-panel {
+            position: fixed; bottom: 95px; right: 25px; z-index: 900;
+            width: 420px; height: 560px;
+            background: linear-gradient(145deg, rgba(15,20,35,0.98), rgba(10,14,26,0.99));
+            border: 1px solid rgba(0,255,170,0.3); border-radius: 16px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.7); display: none; flex-direction: column;
+            overflow: hidden; backdrop-filter: blur(10px);
+        }
+        .chat-header {
+            background: linear-gradient(90deg, #12182b, #1a233d); padding: 15px 18px;
+            border-bottom: 1px solid rgba(0,255,170,0.2); display: flex; justify-content: space-between; align-items: center;
+        }
+        .chat-title { font-weight: 700; color: #fff; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+        .chat-close { background: none; border: none; color: #7a8ba6; font-size: 18px; cursor: pointer; }
+        
+        .chat-messages {
+            flex-grow: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+        }
+        .chat-bubble {
+            max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .chat-bubble.user {
+            align-self: flex-end; background: #00bfff; color: #0a0e1a; font-weight: 500;
+            border-bottom-right-radius: 3px;
+        }
+        .chat-bubble.ai {
+            align-self: flex-start; background: rgba(255,255,255,0.06); color: #e0e0e0;
+            border: 1px solid rgba(255,255,255,0.08); border-bottom-left-radius: 3px;
+        }
+        .chat-bubble.ai code { background: rgba(0,255,170,0.15); color: #00ffaa; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
+        .chat-bubble.ai pre { background: #060913; padding: 8px; border-radius: 6px; overflow-x: auto; margin: 6px 0; font-family: 'Fira Code', monospace; font-size: 12px; color: #00ffaa; }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        .quick-prompts {
+            padding: 8px 15px; display: flex; gap: 6px; overflow-x: auto; background: rgba(0,0,0,0.2);
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+        .quick-btn {
+            background: rgba(0,255,170,0.1); border: 1px solid rgba(0,255,170,0.25); color: #00ffaa;
+            padding: 5px 10px; border-radius: 15px; font-size: 11px; cursor: pointer; white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .quick-btn:hover { background: #00ffaa; color: #0a0e1a; }
+
+        .chat-input-area {
+            padding: 12px; background: #12182b; border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex; gap: 8px;
+        }
+        .chat-input {
+            flex-grow: 1; background: #0a0e1a; border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 13px; outline: none;
+        }
+        .chat-input:focus { border-color: #00ffaa; }
+        .chat-send {
+            background: #00ffaa; color: #0a0e1a; border: none; padding: 0 16px; border-radius: 8px;
+            font-weight: 700; cursor: pointer;
+        }
 
         @media (max-width: 768px) {
-            .resource-grid { grid-template-columns: 1fr; }
-            .header { flex-direction: column; gap: 12px; }
+            .resource-section { grid-template-columns: 1fr; }
+            .chatbox-panel { width: 90vw; right: 5vw; bottom: 85px; }
         }
     </style>
 </head>
 <body>
     <div class="header">
         <div>
-            <h1>🛡️ AI Service Monitor</h1>
-            <div class="subtitle">Real-time Auto Healing & AI Root Cause Analysis (Powered by Groq/Llama 3.1)</div>
+            <h1>🛡️ AI Service Monitor <span style="font-size: 14px; background: #00ffaa; color: #0a0e1a; padding: 2px 8px; border-radius: 12px; font-weight: 800;">v4.0 SOC</span></h1>
+            <div class="subtitle">Autonomous IT Operations & Real-time AI Copilot Execution</div>
         </div>
         <div class="status-indicators">
-            <div class="indicator">
-                <span class="dot" id="aiDot"></span>
-                <span id="aiLabel">AI</span>
-            </div>
-            <div class="indicator">
-                <span class="dot" id="emailDot"></span>
-                <span id="emailLabel">Email</span>
-            </div>
-            <div class="indicator">
-                <span class="dot green"></span>
-                <span>Dashboard Live</span>
-            </div>
+            <div class="indicator"><span class="dot" id="aiDot"></span><span id="aiLabel">AI</span></div>
+            <div class="indicator"><span class="dot" id="emailDot"></span><span id="emailLabel">Email</span></div>
+            <div class="indicator"><span class="dot green"></span><span>Live Stream</span></div>
         </div>
     </div>
 
     <div class="main">
-        <!-- Service Cards -->
+        <!-- Monitored Services -->
         <div class="section-title">📊 Monitored Services</div>
         <div id="serviceGrid" class="service-grid"></div>
 
-        <!-- Resource Monitor -->
-        <div class="section-title">⚙️ System Resources</div>
-        <div class="resource-grid">
-            <div class="resource-card">
-                <div class="res-label"><span>🖥️ CPU Usage</span><span id="cpuIcon">✅</span></div>
-                <div class="res-value" id="cpuValue">0%</div>
-                <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="cpuBar" style="width:0%"></div></div>
-                <div class="res-threshold"><span>Ngưỡng: 90%</span><span id="cpuStatus">OK</span></div>
+        <!-- System Resources (Chart + Bars) -->
+        <div class="section-title">⚡ Real-time Telemetry & Resource Pulse</div>
+        <div class="resource-section">
+            <div class="chart-card">
+                <canvas id="resChart"></canvas>
             </div>
-            <div class="resource-card">
-                <div class="res-label"><span>🧠 RAM Usage</span><span id="memIcon">✅</span></div>
-                <div class="res-value" id="memValue">0%</div>
-                <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="memBar" style="width:0%"></div></div>
-                <div class="res-threshold"><span>Ngưỡng: 85%</span><span id="memStatus">OK</span></div>
-            </div>
-            <div class="resource-card">
-                <div class="res-label"><span>💾 Disk Usage</span><span id="diskIcon">✅</span></div>
-                <div class="res-value" id="diskValue">0%</div>
-                <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="diskBar" style="width:0%"></div></div>
-                <div class="res-threshold"><span>Ngưỡng: 90%</span><span id="diskStatus">OK</span></div>
+            <div class="res-bars-col">
+                <div class="resource-card">
+                    <div class="res-label"><span>🖥️ CPU Usage</span><span id="cpuIcon">✅</span></div>
+                    <div class="res-value" id="cpuValue">0%</div>
+                    <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="cpuBar" style="width:0%"></div></div>
+                </div>
+                <div class="resource-card">
+                    <div class="res-label"><span>🧠 RAM Usage</span><span id="memIcon">✅</span></div>
+                    <div class="res-value" id="memValue">0%</div>
+                    <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="memBar" style="width:0%"></div></div>
+                </div>
+                <div class="resource-card">
+                    <div class="res-label"><span>💾 Disk Usage</span><span id="diskIcon">✅</span></div>
+                    <div class="res-value" id="diskValue">0%</div>
+                    <div class="res-bar-bg"><div class="res-bar-fill level-ok" id="diskBar" style="width:0%"></div></div>
+                </div>
             </div>
         </div>
 
-        <!-- Incidents -->
-        <div class="section-title">🔥 AI Incident Analysis Log</div>
+        <!-- Incidents & One-Click Actions -->
+        <div class="section-title">🔥 AI Incident Analysis & Remediation Log</div>
         <div id="incidentList"></div>
     </div>
 
+    <!-- Cyberpunk Terminal Modal -->
+    <div class="modal-overlay" id="termModal">
+        <div class="terminal-modal">
+            <div class="term-header">
+                <div class="term-title">⚡ CentOS 10 SOC Command Execution</div>
+                <button class="term-close" onclick="closeTerminal()">✕</button>
+            </div>
+            <div class="term-body" id="termOutput">⏳ Đang thực thi lệnh trên máy chủ...</div>
+        </div>
+    </div>
+
+    <!-- Floating AI DevOps Copilot Chatbox -->
+    <button class="floating-chat-btn" onclick="toggleChat()" title="Mở AI DevOps Copilot 24/7">🤖</button>
+    
+    <div class="chatbox-panel" id="chatPanel">
+        <div class="chat-header">
+            <div class="chat-title">🤖 AI DevOps Assistant <span style="font-size: 11px; background: rgba(0,255,170,0.2); color: #00ffaa; padding: 2px 6px; border-radius: 10px;">Llama 3.1</span></div>
+            <button class="chat-close" onclick="toggleChat()">✕</button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-bubble ai">
+                👋 Chào Admin! Tôi là Trợ lý AI SOC chạy trực tiếp trên máy chủ CentOS 10.<br><br>
+                💡 Bạn có thể ra lệnh cho tôi kiểm tra ổ cứng, tìm file lớn, quản lý tiến trình hay giải đáp sự cố ngay lập tức!
+            </div>
+        </div>
+        <div class="quick-prompts">
+            <button class="quick-btn" onclick="sendQuick('💾 Khảo sát ổ đĩa / và tìm 5 thư mục nặng nhất')">💾 Kiểm tra Disk</button>
+            <button class="quick-btn" onclick="sendQuick('🧠 Top 5 tiến trình đang ăn RAM nhất')">🧠 Top RAM</button>
+            <button class="quick-btn" onclick="sendQuick('🔄 Kiểm tra trạng thái dịch vụ httpd')">🔄 Status HTTPD</button>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Hỏi AI hoặc ra lệnh kiểm tra Linux..." onkeypress="if(event.key==='Enter') sendChat()">
+            <button class="chat-send" onclick="sendChat()">Gửi</button>
+        </div>
+    </div>
+
     <script>
+        // Simple Markdown parser
         function md(text) {
             if (!text) return '';
             return text
@@ -295,102 +349,136 @@
         const badgeText = {recovered:'⚡ RECOVERED', healthy:'✅ HEALTHY', crashed:'🔴 CRASHED'};
         let prevIncJson = '';
 
-        function getBarLevel(pct, threshold) {
-            if (pct >= threshold) return 'level-crit';
-            if (pct >= threshold * 0.7) return 'level-warn';
-            return 'level-ok';
+        // ── Khởi tạo Chart.js Đồ thị Real-time ─────────────────────────
+        const ctx = document.getElementById('resChart').getContext('2d');
+        const labels = Array(15).fill('');
+        const cpuData = Array(15).fill(0);
+        const memData = Array(15).fill(0);
+
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'CPU Usage (%)',
+                        data: cpuData,
+                        borderColor: '#00ffaa',
+                        backgroundColor: 'rgba(0, 255, 170, 0.1)',
+                        borderWidth: 2, tension: 0.4, fill: true, pointRadius: 2
+                    },
+                    {
+                        label: 'RAM Usage (%)',
+                        data: memData,
+                        borderColor: '#00ccff',
+                        backgroundColor: 'rgba(0, 204, 255, 0.05)',
+                        borderWidth: 2, tension: 0.4, fill: true, pointRadius: 2
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                animation: { duration: 300 },
+                scales: {
+                    y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#7a8ba6' } },
+                    x: { grid: { display: false } }
+                },
+                plugins: { legend: { labels: { color: '#e0e0e0', font: { size: 12 } } } }
+            }
+        });
+
+        function updateChart(cpu, mem) {
+            chart.data.datasets[0].data.shift();
+            chart.data.datasets[0].data.push(cpu);
+            chart.data.datasets[1].data.shift();
+            chart.data.datasets[1].data.push(mem);
+            chart.update('none');
         }
 
-        function updateResource(id, pct, threshold) {
-            const bar = document.getElementById(id + 'Bar');
+        // ── Update Resources Bars ───────────────────────────────────
+        function getBarLevel(pct, th) { return pct >= th ? 'level-crit' : (pct >= th*0.7 ? 'level-warn' : 'level-ok'); }
+        function updateResBar(id, pct, th) {
             const val = document.getElementById(id + 'Value');
+            const bar = document.getElementById(id + 'Bar');
             const icon = document.getElementById(id + 'Icon');
-            const status = document.getElementById(id + 'Status');
-
             if (val) val.textContent = pct + '%';
-            if (bar) {
-                bar.style.width = Math.min(pct, 100) + '%';
-                bar.className = 'res-bar-fill ' + getBarLevel(pct, threshold);
-            }
-            if (pct >= threshold) {
-                if (icon) icon.textContent = '🔴';
-                if (status) { status.textContent = '⚠️ VUOT NGUONG'; status.style.color = '#ff4466'; }
-            } else if (pct >= threshold * 0.7) {
-                if (icon) icon.textContent = '⚠️';
-                if (status) { status.textContent = 'Cảnh giác'; status.style.color = '#ffaa00'; }
-            } else {
-                if (icon) icon.textContent = '✅';
-                if (status) { status.textContent = 'OK'; status.style.color = '#00ff88'; }
-            }
+            if (bar) { bar.style.width = Math.min(pct, 100) + '%'; bar.className = 'res-bar-fill ' + getBarLevel(pct, th); }
+            if (icon) icon.textContent = pct >= th ? '🔴' : (pct >= th*0.7 ? '⚠️' : '✅');
         }
 
+        // ── Main UI Loop ────────────────────────────────────────────
         function updateUI() {
             fetch('/api/status')
                 .then(r => r.json())
                 .then(data => {
-                    // 1. Indicators
                     document.getElementById('aiDot').className = 'dot ' + (data.ai_connected ? 'green' : 'red');
                     document.getElementById('aiLabel').textContent = data.ai_connected ? 'AI ✓' : 'AI ✗';
                     document.getElementById('emailDot').className = 'dot ' + (data.email_configured ? 'green' : 'red');
                     document.getElementById('emailLabel').textContent = data.email_configured ? 'Email ✓' : 'Email ✗';
 
-                    // 2. Service cards — DOM manipulation
                     const grid = document.getElementById('serviceGrid');
                     const services = Object.values(data.services);
                     if (services.length === 0 && !grid.querySelector('.empty-state')) {
-                        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-                            Chưa có service nào được theo dõi.<br>Agent sẽ tự đăng ký khi chạy lần đầu.
-                            <code>sudo /opt/ai-service-monitor/agent/ai_monitor_service.sh httpd</code>
+                        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1; text-align:center; padding:30px; border:1px dashed #334; border-radius:10px;">
+                            Chưa có service nào báo cáo. Chạy lệnh Agent trên terminal để theo dõi:<br>
+                            <code style="color:#00ffaa;">sudo /opt/ai-service-monitor/agent/ai_monitor_service.sh httpd</code>
                         </div>`;
                     }
                     services.forEach(s => {
                         let card = document.getElementById('svc-' + s.service_name);
                         if (!card) {
-                            const empty = grid.querySelector('.empty-state');
-                            if (empty) empty.remove();
-                            card = document.createElement('div');
-                            card.className = 'service-card';
-                            card.id = 'svc-' + s.service_name;
-                            card.innerHTML = `<div class="name">${s.service_name}</div>
-                                <div class="time" id="time-${s.service_name}"></div>
-                                <span class="badge" id="badge-${s.service_name}"></span>`;
+                            const empty = grid.querySelector('.empty-state'); if (empty) empty.remove();
+                            card = document.createElement('div'); card.className = 'service-card'; card.id = 'svc-' + s.service_name;
+                            card.innerHTML = `<div class="name">${s.service_name}</div><div class="time" id="time-${s.service_name}"></div><span class="badge" id="badge-${s.service_name}"></span>`;
                             grid.appendChild(card);
                         }
-                        const timeEl = document.getElementById('time-' + s.service_name);
-                        const badgeEl = document.getElementById('badge-' + s.service_name);
-                        if (timeEl) timeEl.textContent = 'Last check: ' + s.last_check;
-                        if (badgeEl) {
-                            badgeEl.textContent = badgeText[s.status] || '⏳ WAITING';
-                            badgeEl.className = 'badge ' + s.status;
-                        }
+                        document.getElementById('time-' + s.service_name).textContent = 'Last check: ' + s.last_check;
+                        const badge = document.getElementById('badge-' + s.service_name);
+                        badge.textContent = badgeText[s.status] || '⏳ WAITING';
+                        badge.className = 'badge ' + s.status;
                     });
 
-                    // 3. Resources — cập nhật thanh progress bar (textContent only, no layout thrash)
                     if (data.resources) {
-                        updateResource('cpu', data.resources.cpu, 90);
-                        updateResource('mem', data.resources.mem, 85);
-                        updateResource('disk', data.resources.disk, 90);
+                        updateResBar('cpu', data.resources.cpu, 90);
+                        updateResBar('mem', data.resources.mem, 85);
+                        updateResBar('disk', data.resources.disk, 90);
+                        updateChart(data.resources.cpu, data.resources.mem);
                     }
 
-                    // 4. Incidents — chỉ render khi data thay đổi
                     const incJson = JSON.stringify(data.incidents);
                     if (incJson !== prevIncJson) {
                         prevIncJson = incJson;
                         const scrollY = window.scrollY;
                         const list = document.getElementById('incidentList');
                         if (data.incidents.length === 0) {
-                            list.innerHTML = '<div class="no-incidents">✅ Chưa có sự cố nào. Hệ thống bình thường.</div>';
+                            list.innerHTML = '<div style="text-align:center; padding:40px; color:#556;">✅ Chưa có sự cố nào ghi nhận. Hệ thống đang hoạt động tối ưu.</div>';
                         } else {
-                            list.innerHTML = data.incidents.map(inc => `
+                            list.innerHTML = data.incidents.map(inc => {
+                                // Tự động đề xuất lệnh chẩn đoán nhanh dựa trên loại sự cố
+                                let fixCmd = 'top -bn1 | head -15';
+                                if (inc.service.includes('Resource Alert')) {
+                                    if (inc.service.includes('Disk')) fixCmd = 'df -h / && du -sh /var/log/* /tmp/* 2>/dev/null | sort -rh | head -6';
+                                    else if (inc.service.includes('RAM')) fixCmd = 'ps aux --sort=-%mem | head -8';
+                                    else fixCmd = 'ps aux --sort=-%cpu | head -8';
+                                } else {
+                                    fixCmd = `systemctl status ${inc.service} --no-pager && journalctl -u ${inc.service} -n 15 --no-pager`;
+                                }
+
+                                return `
                                 <div class="incident-card ${inc.ai_done ? 'done' : ''}">
                                     <div class="incident-header">
-                                        <span class="tag ${inc.ai_done ? 'healed' : 'crash'}">${inc.ai_done ? '✅ Auto-Healed' : '🔴 Processing...'}</span>
+                                        <span class="tag ${inc.ai_done ? 'healed' : 'crash'}">${inc.ai_done ? '✅ Auto-Healed / Analysis Ready' : '🔴 AI Processing...'}</span>
                                         <span class="time">${inc.time}</span>
                                     </div>
                                     <div class="incident-service">${inc.service}</div>
                                     <div class="ai-content">${md(inc.ai_analysis)}</div>
-                                </div>
-                            `).join('');
+                                    <div style="margin-top: 10px;">
+                                        <button class="btn-oneclick" onclick="runOneClick('${fixCmd.replace(/'/g, "\\'")}')">
+                                            ⚡ Chẩn đoán & Khắc phục nhanh trên Server (${fixCmd.split('&&')[0]})
+                                        </button>
+                                    </div>
+                                </div>`;
+                            }).join('');
                         }
                         requestAnimationFrame(() => window.scrollTo(0, scrollY));
                     }
@@ -400,6 +488,83 @@
 
         setInterval(updateUI, 1000);
         updateUI();
+
+        // ── Terminal Modal Controls ─────────────────────────────────
+        function runOneClick(cmd) {
+            document.getElementById('termModal').style.display = 'flex';
+            document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${cmd}</div>⏳ Đang thực thi trên máy chủ CentOS 10...`;
+            
+            fetch('/api/execute_fix', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: cmd })
+            })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('termOutput').innerHTML = `<div class="term-cmd">$ ${cmd}</div>${data.output}`;
+            })
+            .catch(err => {
+                document.getElementById('termOutput').innerHTML = `❌ Lỗi kết nối đến máy chủ: ${err}`;
+            });
+        }
+        function closeTerminal() { document.getElementById('termModal').style.display = 'none'; }
+
+        // ── AI Copilot Chat Controls ────────────────────────────────
+        function toggleChat() {
+            const panel = document.getElementById('chatPanel');
+            panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        function appendMessage(sender, text) {
+            const box = document.getElementById('chatMessages');
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble ' + sender;
+            bubble.innerHTML = (sender === 'ai') ? md(text) : text;
+            box.appendChild(bubble);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function sendQuick(text) {
+            document.getElementById('chatInput').value = text;
+            sendChat();
+        }
+
+        function sendChat() {
+            const inp = document.getElementById('chatInput');
+            const msg = inp.value.trim();
+            if (!msg) return;
+            
+            appendMessage('user', msg);
+            inp.value = '';
+            
+            const box = document.getElementById('chatMessages');
+            const loadId = 'loading-' + Date.now();
+            const loadBubble = document.createElement('div');
+            loadBubble.className = 'chat-bubble ai';
+            loadBubble.id = loadId;
+            loadBubble.innerHTML = '⏳ <i>AI đang suy nghĩ & thao tác trên máy chủ...</i>';
+            box.appendChild(loadBubble);
+            box.scrollTop = box.scrollHeight;
+
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg })
+            })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById(loadId).remove();
+                if (data.executed_command) {
+                    appendMessage('ai', `🛠️ <b>Đã thực thi bash trên CentOS:</b> \`${data.executed_command}\`\n\n${data.reply}`);
+                } else {
+                    appendMessage('ai', data.reply);
+                }
+            })
+            .catch(err => {
+                document.getElementById(loadId).remove();
+                appendMessage('ai', `❌ Lỗi kết nối AI: ${err}`);
+            });
+        }
     </script>
 </body>
 </html>

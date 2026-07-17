@@ -1,4 +1,4 @@
-import os, smtplib, threading, time
+import os, smtplib, threading, time, subprocess, re
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
@@ -134,7 +134,7 @@ Hanh dong: {action_taken}
 PHAN TICH AI:
 {analysis}
 {'='*50}
-Gui boi AI Service Monitor v3.0
+Gui boi AI Service Monitor v4.0
 """
     send_email(subject, body)
 
@@ -216,7 +216,7 @@ Disk: {disk}% {'⚠️ VUOT NGUONG!' if disk >= THRESHOLD_DISK else '✅ OK'}
 PHAN TICH AI:
 {analysis}
 {'='*50}
-Gui boi AI Service Monitor v3.0
+Gui boi AI Service Monitor v4.0
 """
     send_email(subject, body)
     last_resource_alert_time = time.time()
@@ -261,11 +261,9 @@ def receive_report():
     svc["last_check"] = ts
 
     if status == "active":
-        # Chỉ chuyển healthy nếu đang ở trạng thái recovered hoặc unknown
         if svc["status"] != "crashed":
             svc["status"] = "healthy"
 
-        # ── Kiểm tra ngưỡng tài nguyên ──
         now = time.time()
         if (cpu >= THRESHOLD_CPU or mem >= THRESHOLD_MEM or disk >= THRESHOLD_DISK):
             if (now - last_resource_alert_time) > RESOURCE_ALERT_COOLDOWN:
@@ -290,7 +288,6 @@ def receive_report():
     }
     incidents_log.insert(0, incident)
 
-    # ĐỢI 3 GIÂY cho Dashboard hiển thị CRASHED rồi mới chuyển RECOVERED
     if action == "restarted":
         threading.Thread(
             target=delayed_recover,
@@ -298,7 +295,6 @@ def receive_report():
             daemon=True
         ).start()
 
-    # Chạy AI + Email ở thread riêng
     threading.Thread(
         target=analyze_and_notify,
         args=(0, service, logs, action),
@@ -308,15 +304,122 @@ def receive_report():
     return jsonify({"ok": True, "msg": "Incident recorded"}), 200
 
 
+# ── v4.0 API: AI DevOps Copilot Chat (Có quyền thực thi bash trên Linux) ──
+@app.route('/api/chat', methods=['POST'])
+def ai_copilot_chat():
+    if not groq_client:
+        return jsonify({"reply": "⚠️ Groq AI chưa kết nối. Vui lòng cấu hình `GROQ_API_KEY` trong `.env`."}), 400
+
+    data = request.json
+    user_msg = data.get("message", "").strip()
+    if not user_msg:
+        return jsonify({"reply": "Vui lòng nhập câu hỏi."}), 400
+
+    try:
+        system_prompt = """Bạn là AI DevOps Assistant chạy trực tiếp trên máy chủ CentOS 10 của hệ thống AI Service Monitor v4.0.
+Bạn có khả năng tương tác với máy chủ Linux và hỗ trợ quản trị viên 24/7.
+
+QUY TẮC QUAN TRỌNG VỀ THỰC THI LỆNH LINUX:
+- Nếu yêu cầu của Admin cần kiểm tra số liệu thực tế trên máy chủ, tìm file chiếm ổ cứng, kiểm tra tiến trình, tạo file giả lập (fallocate), xóa file dọn ổ đĩa, kiểm tra dịch vụ hay chạy bất kỳ lệnh bash nào để xử lý, BẠN PHẢI TRẢ VỀ ĐÚNG MỘT DÒNG DUY NHẤT THEO CÚ PHÁP SAU:
+[[RUN_COMMAND: <lệnh bash>]]
+
+Ví dụ các trường hợp:
+- Admin: "Kiểm tra ổ cứng và tìm 5 thư mục chiếm nhiều chỗ nhất"
+  → Bạn trả lời chính xác: [[RUN_COMMAND: df -h / && echo "--- TOP FOLDERS ---" && du -sh /var/* /tmp/* /usr/* 2>/dev/null | sort -rh | head -5]]
+- Admin: "Tạo giúp tôi file giả lập 2GB ở /tmp/test.img để kiểm tra cảnh báo ổ cứng"
+  → Bạn trả lời chính xác: [[RUN_COMMAND: fallocate -l 2G /tmp/test.img && echo "Đã tạo file /tmp/test.img 2GB:" && ls -lh /tmp/test.img]]
+- Admin: "Xóa file /tmp/test.img giúp tôi để giải phóng ổ đĩa"
+  → Bạn trả lời chính xác: [[RUN_COMMAND: rm -f /tmp/test.img && echo "Đã xóa thành công file /tmp/test.img. Dung lượng hiện tại:" && df -h /]]
+- Admin: "Kiểm tra top 5 tiến trình đang ăn RAM nhất"
+  → Bạn trả lời chính xác: [[RUN_COMMAND: ps aux --sort=-%mem | head -6]]
+- Admin: "Khởi động lại dịch vụ apache"
+  → Bạn trả lời chính xác: [[RUN_COMMAND: systemctl restart httpd && systemctl status httpd --no-pager]]
+
+Nếu yêu cầu chỉ là hỏi đáp kiến thức lý thuyết hay giải thích khái niệm không cần chạy bash, hãy trả lời bằng tiếng Việt chuyên nghiệp dạng Markdown, đầy đủ và thân thiện."""
+
+        chat = groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_msg}
+            ],
+            model="llama-3.1-8b-instant",
+        )
+        first_reply = chat.choices[0].message.content.strip()
+
+        # Kiểm tra xem AI có muốn chạy lệnh không
+        match = re.search(r'\[\[RUN_COMMAND:\s*(.+?)\]\]', first_reply, re.DOTALL)
+        if match:
+            cmd_to_run = match.group(1).strip()
+            print(f"[{datetime.now()}] 🤖 AI Copilot thực thi bash: {cmd_to_run}")
+            try:
+                # Thực thi bash trên CentOS
+                result = subprocess.run(cmd_to_run, shell=True, capture_output=True, text=True, timeout=15)
+                terminal_output = (result.stdout + "\n" + result.stderr).strip()
+                if not terminal_output:
+                    terminal_output = "Lệnh đã thực thi thành công (không có output trả về)."
+            except Exception as e:
+                terminal_output = f"Lỗi khi thực thi lệnh: {e}"
+
+            # Gọi lại AI để giải thích kết quả terminal cho Admin
+            second_prompt = f"""Admin đã hỏi: "{user_msg}"
+Bạn đã ra lệnh bash: `{cmd_to_run}`
+Kết quả từ máy chủ CentOS 10:
+```text
+{terminal_output[:3500]}
+```
+
+Hãy báo cáo và giải thích rõ ràng kết quả trên cho Admin bằng tiếng Việt định dạng Markdown. Nếu là chẩn đoán dung lượng/tài nguyên, hãy chỉ rõ số liệu và đưa lời khuyên hữu ích."""
+
+            chat2 = groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "Bạn là chuyên gia DevOps tóm tắt kết quả terminal một cách chuyên nghiệp, dễ hiểu."},
+                    {"role": "user", "content": second_prompt}
+                ],
+                model="llama-3.1-8b-instant",
+            )
+            final_reply = chat2.choices[0].message.content
+            return jsonify({
+                "reply": final_reply,
+                "executed_command": cmd_to_run,
+                "terminal_output": terminal_output
+            })
+
+        return jsonify({"reply": first_reply})
+
+    except Exception as e:
+        return jsonify({"reply": f"❌ Lỗi xử lý AI Copilot: {e}"}), 500
+
+
+# ── v4.0 API: Thực thi lệnh chẩn đoán nhanh (One-Click Terminal Modal) ──
+@app.route('/api/execute_fix', methods=['POST'])
+def execute_fix():
+    data = request.json
+    cmd = data.get("command", "").strip()
+    if not cmd:
+        return jsonify({"output": "Lệnh trống.", "status": "error"}), 400
+
+    print(f"[{datetime.now()}] ⚡ One-Click Execute: {cmd}")
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+        out = (result.stdout + "\n" + result.stderr).strip()
+        if not out:
+            out = "Lệnh đã thực thi hoàn tất (Thành công - return code 0)."
+        return jsonify({"output": out, "status": "success" if result.returncode == 0 else "error"})
+    except Exception as e:
+        return jsonify({"output": f"Lỗi thực thi: {e}", "status": "error"}), 500
+
+
 if __name__ == '__main__':
-    print("=" * 55)
-    print("  🚀 AI SERVICE MONITOR DASHBOARD v3.0")
+    print("=" * 60)
+    print("  🚀 AI SERVICE MONITOR DASHBOARD v4.0 (Enterprise SOC)")
     print("     + Resource Monitoring (CPU/RAM/Disk)")
-    print("=" * 55)
+    print("     + AI DevOps Copilot Chat 24/7 (Server Execution)")
+    print("     + One-Click Remediation & Terminal Modal")
+    print("=" * 60)
     print(f"  Groq AI : {'✅ Connected' if groq_client else '❌ Not configured'}")
     print(f"  Email   : {'✅ ' + SMTP_EMAIL if SMTP_EMAIL else '❌ Not configured'}")
     print(f"  Password: {'✅ Set (' + SMTP_APP_PASSWORD[:4] + '****)' if SMTP_APP_PASSWORD else '❌ Not set'}")
     print(f"  Thresholds: CPU>{THRESHOLD_CPU}% | RAM>{THRESHOLD_MEM}% | Disk>{THRESHOLD_DISK}%")
     print(f"  URL     : http://0.0.0.0:5000")
-    print("=" * 55)
+    print("=" * 60)
     app.run(host='0.0.0.0', port=5000, debug=False)
