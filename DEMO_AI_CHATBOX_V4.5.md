@@ -29,9 +29,9 @@ sudo pkill -9 -f app.py 2>/dev/null
 sudo pkill -9 -f stress 2>/dev/null
 sleep 1
 
-# 3. Sao lưu cấu hình .env (bảo toàn API Key), xóa thư mục cũ và clone mới từ GitHub
+# 3. Sao lưu cấu hình .env (bảo toàn API Key), thoát ra thư mục gốc, xóa thư mục cũ và clone mới từ GitHub
 sudo cp /opt/ai-service-monitor/backend/.env /tmp/backend_env.bak 2>/dev/null
-sudo rm -rf /opt/ai-service-monitor
+cd / && sudo rm -rf /opt/ai-service-monitor
 sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
 sudo chown -R $USER:$USER /opt/ai-service-monitor
 
