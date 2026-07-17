@@ -61,10 +61,34 @@ ai-service-monitor/
 
 ## 🚀 Hướng Dẫn Cài Đặt & Khởi Động (CentOS 10)
 
-### Bước 1: Tải mã nguồn về máy Linux
+### ⚠️ Lệnh Dọn Dẹp / Reset Sạch (Khôi phục 0% để Demo cài đặt từ bước Setting Key)
+Nếu bạn muốn **xóa trắng hoàn toàn hệ thống, kill tiến trình cũ và xóa cả cấu hình cũ** để trình diễn thực hành cài đặt từ con số 0 (bắt đầu từ Bước 1 clone code và Bước 3 nhập API Key `.env`), hãy chạy cụm lệnh sau trước khi cài đặt:
+```bash
+# 1. Dừng và xóa toàn bộ timer/service giám sát cũ
+sudo systemctl stop ai-monitor@*.timer ai-monitor@*.service 2>/dev/null
+sudo systemctl disable ai-monitor@*.timer 2>/dev/null
+sudo rm -f /etc/systemd/system/ai-monitor@.*
+sudo systemctl daemon-reload
+
+# 2. Tiêu diệt triệt để tiến trình Backend cũ và giải phóng Port 5000
+PID=$(sudo ss -lptn 'sport = :5000' 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | head -1)
+[ -n "$PID" ] && sudo kill -9 "$PID" 2>/dev/null
+sudo fuser -k 5000/tcp 2>/dev/null
+sudo pkill -9 -f app.py 2>/dev/null
+sudo pkill -9 -f stress 2>/dev/null
+sleep 1
+
+# 3. Xóa trắng toàn bộ thư mục dự án cũ (KHÔNG GIỮ LẠI .env cũ)
+sudo rm -rf /opt/ai-service-monitor /tmp/backend_env.bak
+```
+
+---
+
+### Bước 1: Tải mã nguồn về máy Linux & Phân quyền
 
 ```bash
-git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
+sudo git clone https://github.com/KH4NHTU0NG/OSG_PROJECT.git /opt/ai-service-monitor
+sudo chown -R $USER:$USER /opt/ai-service-monitor
 cd /opt/ai-service-monitor
 ```
 
@@ -104,12 +128,12 @@ sudo cp /opt/ai-service-monitor/agent/ai-monitor@.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
 
-### Bước 5: Khởi động Backend Dashboard
+### Bước 5: Khởi động Backend Dashboard (quyền sudo -E để AI có quyền restart dịch vụ)
 
 ```bash
 cd /opt/ai-service-monitor/backend
-nohup python3 app.py > backend.log 2>&1 &
-sleep 2 && cat backend.log
+sudo -E nohup python3 app.py > backend.log 2>&1 &
+sleep 2 && sudo tail -n 15 backend.log
 ```
 *Giao diện Dashboard sẽ hoạt động tại: `http://<IP-của-máy>:5000`*
 
