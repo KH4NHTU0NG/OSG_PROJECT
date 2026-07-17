@@ -41,7 +41,9 @@ sudo cp /opt/ai-service-monitor/agent/ai-monitor@.service /etc/systemd/system/
 sudo cp /opt/ai-service-monitor/agent/ai-monitor@.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
-cd /opt/ai-service-monitor/backend && sudo -E nohup python3 app.py > backend.log 2>&1 &
+cd /opt/ai-service-monitor/backend
+sudo -E nohup python3 app.py > backend.log 2>&1 &
+sleep 2 && sudo tail -n 15 /opt/ai-service-monitor/backend/backend.log
 ```
 
 ---

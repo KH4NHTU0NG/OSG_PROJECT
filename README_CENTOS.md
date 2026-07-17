@@ -68,7 +68,7 @@ chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
 5. Chạy Backend (quyền sudo -E để AI có quyền restart dịch vụ):
    ```bash
    sudo -E nohup python3 app.py > backend.log 2>&1 &
-   sleep 2 && sudo tail -n 15 backend.log
+   sleep 2 && sudo tail -n 15 /opt/ai-service-monitor/backend/backend.log
    ```
 
 ## 4. Cấu Hình Agent (Giám Sát)
@@ -118,7 +118,9 @@ sudo cp /opt/ai-service-monitor/agent/ai-monitor@.service /etc/systemd/system/
 sudo cp /opt/ai-service-monitor/agent/ai-monitor@.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo chmod +x /opt/ai-service-monitor/agent/ai_monitor_service.sh
-cd /opt/ai-service-monitor/backend && sudo -E nohup python3 app.py > backend.log 2>&1 &
+cd /opt/ai-service-monitor/backend
+sudo -E nohup python3 app.py > backend.log 2>&1 &
+sleep 2 && sudo tail -n 15 /opt/ai-service-monitor/backend/backend.log
 ```
 
 ---
