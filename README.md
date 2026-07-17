@@ -219,33 +219,33 @@ sudo systemctl stop httpd sshd crond
 ---
 
 ### Kịch bản 4 (v3.0): Giám sát tài nguyên — Giả lập CPU quá tải
-**Mục tiêu:** Chứng minh hệ thống phát hiện tài nguyên vượt ngưỡng, AI phân tích chủ động (Proactive) và gửi cảnh báo **trước khi** dịch vụ bị sập.
+**Mục tiêu:** Chứng minh hệ thống phát hiện tài nguyên vượt ngưỡng cực nhanh, AI phân tích chủ động (Proactive) và gửi cảnh báo **trước khi** dịch vụ bị sập.
 ```bash
 # Cài công cụ stress test (chỉ cần 1 lần)
 sudo dnf install -y stress
 
-# Giả lập CPU quá tải (4 core chạy hết công suất, 60 giây)
-stress --cpu 4 --timeout 60
+# Giả lập CPU quá tải cực mạnh (16 luồng ép CPU lên 100% trong đúng 20 giây)
+stress --cpu 16 --timeout 20
 ```
 **Kết quả mong đợi:**
-- Dashboard: Thanh CPU chuyển từ 🟢 Xanh → 🟡 Vàng → 🔴 Đỏ nháy.
+- Dashboard: Chỉ sau 1-3 giây, thanh CPU lập tức vọt lên **100%**, chuyển từ 🟢 Xanh → 🔴 Đỏ nháy (`⚠️ VUOT NGUONG`).
 - Khi CPU vượt ngưỡng **90%**: AI tự động phân tích nguyên nhân, đề xuất lệnh `top`, `ps aux --sort=-%cpu | head` để tìm tiến trình chiếm CPU, kèm đánh giá mức độ **WARNING / CRITICAL**.
 - Email cảnh báo gửi ngay lập tức đến hộp thư quản trị viên.
-- Sau khi lệnh `stress` kết thúc, thanh CPU tự trở về xanh.
+- Sau đúng 20 giây, lệnh `stress` kết thúc, thanh CPU tự về xanh bình thường.
 
 ---
 
 ### Kịch bản 5 (v3.0): Giám sát tài nguyên — Giả lập RAM quá tải
-**Mục tiêu:** Kiểm thử AI phát hiện Memory Leak / RAM đầy, cảnh báo trước khi OOM-Killer tiêu diệt dịch vụ.
+**Mục tiêu:** Kiểm thử AI phát hiện Memory Leak / RAM đầy cực nhanh, cảnh báo trước khi OOM-Killer tiêu diệt dịch vụ.
 ```bash
-# Giả lập RAM quá tải (2 tiến trình x 512MB, 60 giây)
-stress --vm 2 --vm-bytes 512M --timeout 60
+# Giả lập RAM quá tải mạnh (2 luồng x 1024MB = 2GB RAM trong đúng 20 giây)
+stress --vm 2 --vm-bytes 1024M --timeout 20
 ```
 **Kết quả mong đợi:**
-- Dashboard: Thanh RAM chuyển đỏ nháy, hiển thị `⚠️ VUOT NGUONG`.
+- Dashboard: Thanh RAM lập tức vọt cao, chuyển đỏ nháy, hiển thị `⚠️ VUOT NGUONG`.
 - AI phân tích: Phát hiện tiến trình `stress` chiếm RAM bất thường, đề xuất kiểm tra `ps aux --sort=-%mem | head`, `free -m`, `cat /proc/meminfo`, cảnh báo nguy cơ OOM-Kill.
 - Email cảnh báo gửi đến quản trị viên với phân tích chi tiết.
-- Cooldown 5 phút: Không spam email liên tục, chỉ cảnh báo 1 lần.
+- Sau đúng 20 giây, RAM được giải phóng và thanh trạng thái tự phục hồi.
 
 ---
 
