@@ -214,6 +214,20 @@ sudo rm -f /tmp/testdisk.img
 
 ---
 
+### Kịch bản 7 (v4.5 - MỚI): AI DevOps Copilot Chatbox 24/7 — Ra lệnh & Khắc phục sự cố bằng Tiếng Việt
+**Mục tiêu:** Trình diễn AI Assistant (Groq Llama 3.1) nhận lệnh bằng ngôn ngữ tự nhiên, tự động chuyển hóa thành lệnh Bash và thực thi trực tiếp trên kernel CentOS 10 để bảo trì hệ thống.
+**Các bước Demo:**
+1. Mở khung Chat 🤖 ở góc phải dưới Web Dashboard.
+2. Bấm vào nút gợi ý **`⚡ Khởi động lại CROND`** hoặc gõ:
+   > *"Hãy khởi động lại dịch vụ crond và kiểm tra trạng thái mới nhất giúp tôi"*
+3. **Kết quả mong đợi:**
+   - AI tự động gõ và chạy lệnh Linux ngầm: `systemctl restart crond && systemctl status crond --no-pager`
+   - AI trả về output bash thực tế kèm thông báo tiếng Việt: *"Dịch vụ crond đã được khởi động lại thành công (active running)..."*
+   - Bảng **⚙️ Core Daemons** trên Dashboard lập tức chuyển trạng thái `crond` sang xanh **`✅ HEALTHY`** kèm thời gian cập nhật mới nhất!
+*(Xem trọn bộ kịch bản chi tiết trong file `DEMO_AI_CHATBOX_V4.5.md`)*
+
+---
+
 ## ⚙️ Ngưỡng Cảnh Báo Tài Nguyên (Cấu Hình Mặc Định)
 
 | Tài nguyên | Ngưỡng | Hành động khi vượt |
